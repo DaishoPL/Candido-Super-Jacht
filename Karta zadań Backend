@@ -1,0 +1,257 @@
+/**
+ * BACKEND - Logika aplikacji (Apps Script)
+ */
+
+function doGet() {
+  return HtmlService.createTemplateFromFile('index')
+    .evaluate()
+    .setTitle('Seavia - Panel Brygadzisty')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/**
+ * Zwraca wszystkie niezbędne dane do załadowania aplikacji
+ */
+function getInitialData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  let technicians = [];
+  const dataSheet = ss.getSheetByName('Data sheet');
+  if (dataSheet) {
+    const lastRow = dataSheet.getLastRow();
+    if (lastRow >= 9) {
+      const techData = dataSheet.getRange(9, 2, lastRow - 8, 1).getValues();
+      technicians = techData.map(r => String(r[0]).trim()).filter(n => n !== "");
+    }
+  }
+
+  let tasksTree = {}; 
+  const sheetCandido = ss.getSheetByName('Candido');
+  if (sheetCandido) {
+    const lastRow = sheetCandido.getLastRow();
+    
+    // Pobieramy dane do ostatniego wpisanego wiersza
+    if (lastRow >= 3) {
+      const data = sheetCandido.getRange(1, 1, lastRow, 16).getValues();
+      
+      let currentDeck = "";
+      let currentArea = "";
+      
+      for (let i = 2; i < data.length; i++) {
+        // Zabezpieczenie przed błędami odczytu i scalonymi komórkami
+        let deckVal = String(data[i][2] || "").trim(); // Główne poszukiwanie w Kolumnie C
+        
+        // Jeśli C jest puste, a w B jest tekst z "Dk" to znaczy że komórki mogły zostać scalone
+        if (deckVal === "" && String(data[i][1] || "").toLowerCase().includes("dk")) {
+            deckVal = String(data[i][1] || "").trim();
+        }
+
+        let areaVal = String(data[i][3] || "").trim(); // Kolumna D
+        
+        // Szukamy nazwy zadania
+        let taskName = String(data[i][8] || "").trim(); // Główne poszukiwanie w Kolumnie I
+        
+        // Fallback: Jeśli w I jest pusto, przy pracach dodatkowych tekst często jest w H lub J
+        if (taskName === "") {
+            let taskH = String(data[i][7] || "").trim();
+            let taskJ = String(data[i][9] || "").trim();
+            
+            if (taskH !== "" && !taskH.toLowerCase().includes("seavia")) {
+                taskName = taskH;
+            } else if (taskJ !== "") {
+                taskName = taskJ;
+            }
+        }
+        
+        let rowNumber = i + 1; 
+        
+        // Rejestrujemy pokład NATYCHMIAST - to gwarantuje, że pojawi się w menu rozwijanym!
+        if (deckVal !== "") {
+          currentDeck = deckVal;
+          currentArea = ""; // KRYTYCZNE: Resetujemy strefę przy zmianie pokładu
+          if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {};
+        }
+        
+        if (areaVal !== "") {
+          currentArea = areaVal;
+        }
+        
+        // Ignorujemy dodanie samego zadania TYLKO jeśli nie ma żadnego pokładu lub nazwy zadania
+        if (currentDeck === "" || taskName === "") continue;
+        
+        let area = currentArea === "" ? "Brak strefy" : currentArea;
+
+        if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {}; // Upewniamy się, że gałąź istnieje
+        if (!tasksTree[currentDeck][area]) tasksTree[currentDeck][area] = [];
+        
+        tasksTree[currentDeck][area].push({
+          row: rowNumber,
+          taskName: taskName
+        });
+      }
+    }
+  }
+
+  return {
+    technicians: technicians,
+    tasksTree: tasksTree
+  };
+}
+
+/**
+ * Pobiera zaplanowane zadania dla konkretnego technika i daty
+ */
+function getTechnicianTasksForDate(techName, dateStr) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
+  let tasks = [];
+
+  if (!sheetSpis) return tasks;
+
+  const lastRow = sheetSpis.getLastRow();
+  if (lastRow < 2) return tasks; // Tylko nagłówki lub pusto
+
+  const data = sheetSpis.getRange(2, 1, lastRow - 1, 8).getDisplayValues();
+  const rawDates = sheetSpis.getRange(2, 1, lastRow - 1, 1).getValues();
+
+  for (let i = 0; i < data.length; i++) {
+    // Używamy parseDateToYMD by upewnić się, że data z arkusza pasuje do formatu HTML (YYYY-MM-DD)
+    let rowDate = parseDateToYMD(rawDates[i][0]);
+    let rowStart = data[i][1];
+    let rowEnd = data[i][2];
+    let rowDeck = data[i][3];
+    let rowTask = data[i][5];
+    let rowTech = String(data[i][7]).trim().toLowerCase();
+
+    if (rowTech === techName.trim().toLowerCase() && rowDate === dateStr) {
+      tasks.push({
+        start: rowStart,
+        end: rowEnd,
+        deck: rowDeck,
+        taskName: rowTask
+      });
+    }
+  }
+  
+  // Sortowanie zadań chronologicznie po godzinie rozpoczęcia
+  tasks.sort((a, b) => a.start.localeCompare(b.start));
+  return tasks;
+}
+
+function addTechnician(name) {
+  if (!name || name.trim() === "") {
+    return { success: false, message: "Nazwisko nie może być puste!" };
+  }
+  
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const techName = name.trim();
+    
+    const dataSheet = ss.getSheetByName('Data sheet');
+    if (!dataSheet) {
+      return { success: false, message: "Błąd: Brak zakładki 'Data sheet' w arkuszu." };
+    }
+    
+    const lastRow = dataSheet.getLastRow();
+    let added = false;
+    
+    if (lastRow >= 9) {
+      const values = dataSheet.getRange("B9:B").getValues();
+      for (let i = 0; i < values.length; i++) {
+        if (String(values[i][0]).trim() === "") {
+          dataSheet.getRange(9 + i, 2).setValue(techName);
+          added = true;
+          break;
+        }
+      }
+    }
+    
+    if (!added) {
+      dataSheet.getRange(Math.max(lastRow + 1, 9), 2).setValue(techName);
+    }
+
+    return { success: true, message: "Pomyślnie dodano technika: " + techName, newTech: techName };
+  } catch (error) {
+    return { success: false, message: "Błąd podczas dodawania technika: " + error.toString() };
+  }
+}
+
+function parseDateToYMD(val) {
+  if (!val) return null;
+  if (val instanceof Date) {
+    let d = val.getDate().toString().padStart(2, '0');
+    let m = (val.getMonth() + 1).toString().padStart(2, '0');
+    let y = val.getFullYear();
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof val === 'string') {
+    let str = val.trim();
+    let m1 = str.match(/(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{2,4})/);
+    if (m1) {
+      let d = m1[1].padStart(2, '0');
+      let m = m1[2].padStart(2, '0');
+      let y = m1[3];
+      if (y.length === 2) y = "20" + y;
+      return `${y}-${m}-${d}`;
+    }
+    // Jeśli z frontendu przyszło od razu YYYY-MM-DD
+    if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
+  }
+  return null;
+}
+
+function submitWorkReport(formData) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let idPrac = "";
+    
+    if (formData.taskRow) {
+      const sheetCandido = ss.getSheetByName('Candido');
+      if (sheetCandido) {
+        idPrac = sheetCandido.getRange(parseInt(formData.taskRow), 6).getValue();
+        if (!idPrac || idPrac === "") {
+          idPrac = "Wiersz " + formData.taskRow;
+        }
+        
+        if (formData.progress) {
+          sheetCandido.getRange(parseInt(formData.taskRow), 16).setValue(formData.progress + "%");
+        }
+      }
+    }
+
+    let sheetSpis = ss.getSheetByName('Spis wykonanych prac');
+    if (!sheetSpis) {
+      sheetSpis = ss.insertSheet('Spis wykonanych prac');
+    }
+    
+    if (sheetSpis.getLastRow() === 0) {
+      sheetSpis.appendRow([
+        "Data", 
+        "Godzina rozpoczęcia pracy", 
+        "Godzina zakończenia pracy", 
+        "Pokład", 
+        "Typ prac", 
+        "Nazwa prac", 
+        "ID prac", 
+        "Technik"
+      ]);
+      sheetSpis.getRange(1, 1, 1, 8).setFontWeight("bold");
+    }
+    
+    sheetSpis.appendRow([
+      formData.workDate,
+      formData.timeStart,
+      formData.timeEnd,
+      formData.deck,
+      formData.area,
+      formData.taskName,
+      idPrac,
+      formData.technician
+    ]);
+
+    return { success: true, message: "Pomyślnie zapisano godziny i postęp zadania!" };
+  } catch (error) {
+    return { success: false, message: "Błąd podczas zapisu: " + error.toString() };
+  }
+}

@@ -1,0 +1,107 @@
+<form id="workForm" onsubmit="submitForm(event)" class="bg-white rounded-lg shadow-sm border border-gray-100 min-h-[400px]">
+  
+  <!-- Sekcja 1: Użytkownik i Czas -->
+  <div class="p-8 border-b border-gray-100">
+    <div class="flex justify-between items-center mb-5">
+      <h3 class="text-lg font-bold text-seaviaBlue"><i class="fa-regular fa-clock mr-2 text-candidoRed"></i> Dane pracownika i godziny</h3>
+      <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Krok 1</span>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Wybierz pracownika</label>
+        <select id="technician" required onchange="onTechOrDateChange()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed focus:border-candidoRed bg-slate-50 font-medium text-slate-700">
+          <option value="" disabled selected>Wybierz z listy...</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Data prac</label>
+        <input type="date" id="workDate" required onchange="onTechOrDateChange()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-slate-50 font-medium text-slate-700">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Rozpoczęcie (Start)</label>
+        <input type="time" id="timeStart" required onchange="validateTimes()" oninput="validateTimes()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-slate-50 font-medium text-slate-700">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Zakończenie (Koniec)</label>
+        <input type="time" id="timeEnd" required onchange="validateTimes()" oninput="validateTimes()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-slate-50 font-medium text-slate-700">
+      </div>
+
+      <!-- Moduł Walidacji i Harmonogramu -->
+      <div id="timeErrorMsg" class="col-span-1 md:col-span-2 hidden">
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm font-medium">
+          <span id="timeErrorText"><i class="fa-solid fa-circle-exclamation mr-1"></i> Błąd: ...</span>
+        </div>
+      </div>
+
+      <div id="scheduleSection" class="col-span-1 md:col-span-2 hidden mt-1">
+         <div class="p-4 bg-slate-50 border border-slate-200 rounded-md">
+           <h4 class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2"><i class="fa-solid fa-list-check mr-1"></i> Dzisiejszy harmonogram pracownika:</h4>
+           <ul id="scheduleList" class="text-sm text-slate-700 space-y-1 font-medium">
+              <!-- Wypełniane dynamicznie przez skrypt -->
+           </ul>
+         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sekcja 2: Zadanie -->
+  <div class="p-8 border-b border-gray-100 bg-slate-50">
+    <div class="flex justify-between items-center mb-5">
+      <h3 class="text-lg font-bold text-seaviaBlue"><i class="fa-solid fa-hammer mr-2 text-candidoRed"></i> Przydział zadania z harmonogramu</h3>
+      <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Krok 2</span>
+    </div>
+    
+    <div class="space-y-5">
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">1. Wybierz Pokład (Deck)</label>
+        <select id="deckSelect" required onchange="onDeckChange()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-white font-medium text-slate-700 shadow-sm">
+          <option value="" disabled selected>Najpierw wybierz pokład...</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">2. Powierzchnia / Obszar</label>
+        <select id="areaSelect" required onchange="onAreaChange()" disabled class="w-full rounded-md border border-slate-200 p-2.5 bg-gray-100 opacity-60 font-medium">
+          <option value="" disabled selected>Wybierz powierzchnię...</option>
+        </select>
+        <!-- NOWE: Pole do ręcznego wpisywania obszaru -->
+        <input type="text" id="customAreaInput" placeholder="Wpisz nazwę obszaru..." class="w-full rounded-md border border-slate-300 p-2.5 mt-2 hidden focus:ring-2 focus:ring-candidoRed bg-white font-medium text-slate-700 shadow-sm">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">3. Wykonane Zadanie</label>
+        <select id="taskSelect" required onchange="onTaskChange()" disabled class="w-full rounded-md border border-slate-200 p-2.5 bg-gray-100 opacity-60 font-medium">
+          <option value="" disabled selected>Wybierz zadanie...</option>
+        </select>
+        <!-- NOWE: Pole do ręcznego wpisywania zadania -->
+        <input type="text" id="customTaskInput" placeholder="Wpisz realizowane zadanie..." class="w-full rounded-md border border-slate-300 p-2.5 mt-2 hidden focus:ring-2 focus:ring-candidoRed bg-white font-medium text-slate-700 shadow-sm">
+        <input type="hidden" id="taskRowNumber">
+      </div>
+    </div>
+  </div>
+
+  <!-- Sekcja 3: Postęp i Zapis -->
+  <div id="progressSection" class="p-8 hidden transition-all duration-300">
+    <div class="mb-6">
+      <h3 class="text-sm font-bold text-seaviaBlue uppercase tracking-wider mb-2">Poziom wykonania zadania (%)</h3>
+      <p class="text-xs text-slate-500 mb-4">Wartość zostanie zaaktualizowana w głównej tabeli projektu.</p>
+      
+      <div class="flex items-center gap-4 bg-white p-4 rounded-md border border-slate-200 shadow-sm">
+        <input type="range" id="progressRange" min="0" max="100" step="5" value="0" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-candidoRed" oninput="document.getElementById('progressValue').innerText = this.value + '%'">
+        <span id="progressValue" class="text-xl font-bold text-candidoRed min-w-[3rem] text-right">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="p-6 bg-slate-100 rounded-b-lg flex justify-end">
+     <button type="submit" id="submitBtn" class="bg-candidoRed hover:bg-red-700 text-white font-bold py-3 px-8 rounded-md shadow-md transition-all flex items-center">
+      <span>Zapisz i prześlij</span>
+      <i class="fa-solid fa-paper-plane ml-3"></i>
+    </button>
+  </div>
+  
+</form>

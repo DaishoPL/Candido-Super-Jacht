@@ -1,9 +1,344 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <base target="_top">
-  </head>
-  <body>
+<div class="bg-white rounded-lg shadow-sm p-4 md:p-8 border border-gray-100 animate-fade-in">
+  
+  <!-- Nagłówek i przyciski akcji -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-seaviaBlue">Zespoły i Technicy</h2>
+      <p class="text-sm text-slate-500 mt-1">Zarządzaj składem drużyn, zmieniaj statusy i śledź godziny.</p>
+    </div>
+    <div class="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+      <button onclick="promptAddTeam()" class="w-full sm:w-auto bg-white border border-slate-300 hover:bg-slate-50 text-seaviaBlue font-bold py-2.5 px-4 rounded-md shadow-sm transition-all flex items-center justify-center">
+        <i class="fa-solid fa-users-rectangle mr-2"></i> Nowy zespół
+      </button>
+      <button onclick="promptAddTechnician()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-md shadow-sm transition-all flex items-center justify-center">
+        <i class="fa-solid fa-user-plus mr-2"></i> Dodaj technika
+      </button>
+    </div>
+  </div>
+
+  <!-- Przełącznik Widoku (Tabela / Kontenery) -->
+  <div class="flex space-x-2 bg-slate-100 p-1.5 rounded-lg w-max mb-6 border border-slate-200">
+    <button id="btnViewTable" onclick="switchTechView('table')" class="px-5 py-2 text-sm font-bold rounded-md bg-white text-seaviaBlue shadow-sm transition-all flex items-center">
+      <i class="fa-solid fa-table mr-2"></i> Tabela
+    </button>
+    <button id="btnViewAccordion" onclick="switchTechView('accordion')" class="px-5 py-2 text-sm font-bold rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all flex items-center">
+      <i class="fa-solid fa-layer-group mr-2"></i> Zespoły
+    </button>
+  </div>
+  
+  <!-- ============================================== -->
+  <!-- WIDOK 1: KLASYCZNA TABELA (Dla małych projektów) -->
+  <!-- ============================================== -->
+  <div id="view-table" class="block rounded-lg border border-slate-200 animate-fade-in overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-200">
+            <th class="p-3 font-bold">Imię i nazwisko</th>
+            <th class="p-3 font-bold w-40">Drużyna (Team)</th>
+            <th class="p-3 font-bold text-center w-28">Status</th>
+            <th class="p-3 font-bold text-center w-24">Godziny</th>
+            <th class="p-3 font-bold">Na pokładach</th>
+          </tr>
+        </thead>
+        <tbody id="techTableBody">
+          <tr>
+             <td colspan="5" class="p-8 text-center text-slate-400">
+               <i class="fa-solid fa-ellipsis fa-fade text-2xl"></i>
+               <p class="mt-2 text-sm">Pobieranie danych...</p>
+             </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- WIDOK 2: KONTENERY/AKORDEONY (Dla +100 osób na mobilki) -->
+  <!-- ============================================== -->
+  <div id="view-accordion" class="hidden space-y-4 animate-fade-in">
+    <div id="teamsAccordionContainer"></div>
+  </div>
+
+</div>
+
+<script>
+  // Zmienne do zapamiętania stanu interfejsu
+  let openTeamIds = new Set();
+  let currentTechView = 'table'; 
+
+  // Przełączanie między Tabelą a Kontenerami
+  function switchTechView(view) {
+    currentTechView = view;
     
-  </body>
-</html>
+    const viewTable = document.getElementById('view-table');
+    const viewAccordion = document.getElementById('view-accordion');
+    const btnTable = document.getElementById('btnViewTable');
+    const btnAccordion = document.getElementById('btnViewAccordion');
+
+    if (view === 'table') {
+      viewTable.classList.remove('hidden'); viewTable.classList.add('block');
+      viewAccordion.classList.remove('block'); viewAccordion.classList.add('hidden');
+      
+      btnTable.className = "px-5 py-2 text-sm font-bold rounded-md bg-white text-seaviaBlue shadow-sm transition-all flex items-center";
+      btnAccordion.className = "px-5 py-2 text-sm font-bold rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all flex items-center";
+    } else {
+      viewAccordion.classList.remove('hidden'); viewAccordion.classList.add('block');
+      viewTable.classList.remove('block'); viewTable.classList.add('hidden');
+      
+      btnAccordion.className = "px-5 py-2 text-sm font-bold rounded-md bg-white text-seaviaBlue shadow-sm transition-all flex items-center";
+      btnTable.className = "px-5 py-2 text-sm font-bold rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all flex items-center";
+    }
+  }
+
+  function toggleTeam(teamId) {
+    const bodyEl = document.getElementById('body-' + teamId);
+    const iconEl = document.getElementById('icon-' + teamId);
+    
+    if (bodyEl.classList.contains('hidden')) {
+      bodyEl.classList.remove('hidden');
+      iconEl.classList.add('rotate-180');
+      openTeamIds.add(teamId);
+    } else {
+      bodyEl.classList.add('hidden');
+      iconEl.classList.remove('rotate-180');
+      openTeamIds.delete(teamId);
+    }
+  }
+
+  // GŁÓWNA FUNKCJA RYSUJĄCA OBA WIDOKI
+  function renderTechnicians(data) {
+    const tbodyTable = document.getElementById('techTableBody');
+    const containerAccordion = document.getElementById('teamsAccordionContainer');
+    
+    if (!tbodyTable || !containerAccordion) return;
+    
+    if (!data || !data.techniciansDetails || data.techniciansDetails.length === 0) {
+       tbodyTable.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-500 font-medium">Brak danych o technikach w bazie.</td></tr>';
+       containerAccordion.innerHTML = '<div class="p-8 text-center text-slate-500 font-medium bg-slate-50 rounded-lg border border-dashed border-slate-300">Brak danych o technikach.</div>';
+       return;
+    }
+
+    // 1. Unikalne zespoły (do Selectów)
+    const allTeams = [...new Set(data.techniciansDetails.map(t => t.team).filter(t => t && t !== ''))].sort();
+
+    let tableHtml = '';
+    let accordionHtml = '';
+
+    // ==============================================
+    // GENEROWANIE WIDOKU 1: TABELI
+    // ==============================================
+    let tableData = [...data.techniciansDetails].sort((a, b) => a.name.localeCompare(b.name));
+    
+    tableData.forEach(tech => {
+       let isActive = (tech.status === 'aktywny' || tech.status === 'active');
+       let statusColor = isActive ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-500 bg-slate-50 border-slate-200';
+       let statusDot = isActive ? 'text-emerald-500' : 'text-slate-400';
+       let newStatusToSet = isActive ? 'nieaktywny' : 'aktywny';
+       
+       let teamOptions = `<option value="" class="text-slate-400">-- Brak --</option>`;
+       allTeams.forEach(team => {
+         let selected = (tech.team === team) ? 'selected' : '';
+         teamOptions += `<option value="${team}" ${selected}>${team}</option>`;
+       });
+       teamOptions += `<option disabled>──────────</option><option value="__NEW__" class="font-bold text-seaviaBlue">➕ Nowy...</option>`;
+
+       // KOMPAKTOWE PIGUŁKI DLA POKŁADÓW (Tekst oddzielony kreską)
+       let deckList = Object.keys(tech.hoursByDeck).map(deck => {
+         return `<span class="whitespace-nowrap"><strong class="text-seaviaBlue">${deck}:</strong> ${Math.round(tech.hoursByDeck[deck])}h</span>`;
+       }).join('<span class="text-slate-300 mx-1.5 font-light">|</span>');
+       
+       if (deckList === '') deckList = '<span class="text-[11px] text-slate-400 italic">Brak godzin</span>';
+       let compactDecks = `<div class="text-[11px] leading-relaxed text-slate-600">${deckList}</div>`;
+
+       tableHtml += `
+         <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+            <td class="p-3 font-bold text-slate-700 whitespace-nowrap">${tech.name}</td>
+            <td class="p-3">
+              <select onchange="changeTechTeam('${tech.name}', this)" class="team-select w-full text-[11px] font-bold border border-slate-200 rounded p-1.5 bg-white focus:ring-2 focus:ring-seaviaBlue cursor-pointer shadow-sm text-slate-700">
+                ${teamOptions}
+              </select>
+            </td>
+            <td class="p-3 text-center">
+              <button onclick="toggleTechStatus('${tech.name}', '${newStatusToSet}', this)" class="border ${statusColor} hover:opacity-80 px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider inline-flex items-center transition-all w-full justify-center">
+                <i class="fa-solid fa-circle text-[6px] mr-1 ${statusDot}"></i> ${isActive ? 'Aktywny' : 'Nieakt.'}
+              </button>
+            </td>
+            <td class="p-3 text-center font-black text-base text-candidoRed">${Math.round(tech.totalHours)}h</td>
+            <td class="p-3">${compactDecks}</td>
+         </tr>
+       `;
+    });
+    tbodyTable.innerHTML = tableHtml;
+
+    // ==============================================
+    // GENEROWANIE WIDOKU 2: KONTENERÓW (AKORDEONÓW)
+    // ==============================================
+    let grouped = {};
+    data.techniciansDetails.forEach(tech => {
+      let teamName = tech.team && tech.team.trim() !== '' ? tech.team : '__UNASSIGNED__';
+      if (!grouped[teamName]) grouped[teamName] = { name: teamName, members: [], totalHours: 0 };
+      grouped[teamName].members.push(tech);
+      grouped[teamName].totalHours += (tech.totalHours || 0);
+    });
+
+    const buildTeamSection = (teamKey, groupData) => {
+      const isUnassigned = teamKey === '__UNASSIGNED__';
+      const displayName = isUnassigned ? 'Brak przypisanej drużyny' : groupData.name;
+      const safeId = isUnassigned ? 'unassigned' : teamKey.replace(/[^a-zA-Z0-9]/g, '_');
+      
+      const badgeColor = isUnassigned ? 'bg-slate-500' : 'bg-seaviaBlue';
+      const headerBg = isUnassigned ? 'bg-slate-100/50 hover:bg-slate-100' : 'bg-white hover:bg-slate-50';
+      const borderStyle = isUnassigned ? 'border-dashed border-slate-300' : 'border-slate-200 shadow-sm';
+      
+      const isOpen = openTeamIds.has(safeId);
+      const hiddenClass = isOpen ? '' : 'hidden';
+      const rotateClass = isOpen ? 'rotate-180' : '';
+
+      let sectionHtml = `
+        <div class="border rounded-lg overflow-hidden transition-all ${borderStyle}">
+          <button onclick="toggleTeam('${safeId}')" class="w-full px-4 py-4 md:px-6 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center ${headerBg} transition-colors gap-3">
+            <div class="flex items-center gap-3">
+              <span class="font-bold text-lg text-slate-800">${displayName}</span>
+              <span class="${badgeColor} text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">
+                <i class="fa-solid fa-users mr-1"></i> ${groupData.members.length}
+              </span>
+            </div>
+            <div class="flex items-center w-full sm:w-auto justify-between sm:justify-end gap-6 text-slate-600">
+              <span class="font-bold text-sm bg-slate-100 px-3 py-1 rounded-md"><i class="fa-regular fa-clock text-candidoRed mr-1"></i> ${Math.round(groupData.totalHours)}h razem</span>
+              <i id="icon-${safeId}" class="fa-solid fa-chevron-down transition-transform duration-300 ${rotateClass}"></i>
+            </div>
+          </button>
+          <div id="body-${safeId}" class="${hiddenClass} border-t border-slate-100 divide-y divide-slate-100 bg-white">
+      `;
+
+      groupData.members.sort((a, b) => a.name.localeCompare(b.name));
+
+      groupData.members.forEach(tech => {
+        let isActive = (tech.status === 'aktywny' || tech.status === 'active');
+        let statusColor = isActive ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-500 bg-slate-50 border-slate-200';
+        let statusDot = isActive ? 'text-emerald-500' : 'text-slate-400';
+        let newStatusToSet = isActive ? 'nieaktywny' : 'aktywny';
+        
+        // KOMPAKTOWE GODZINY DLA KONTENERÓW
+        let deckList = Object.keys(tech.hoursByDeck).map(deck => {
+          return `<span class="whitespace-nowrap"><strong class="text-seaviaBlue">${deck}:</strong> ${Math.round(tech.hoursByDeck[deck])}h</span>`;
+        }).join('<span class="text-slate-300 mx-1.5 font-light">|</span>');
+        
+        let compactDecks = deckList !== '' ? `<div class="text-[11px] leading-relaxed text-slate-600">${deckList}</div>` : '';
+
+        let teamOptions = `<option value="" class="text-slate-400">-- Usuń z drużyny --</option>`;
+        allTeams.forEach(team => {
+          let selected = (tech.team === team) ? 'selected' : '';
+          teamOptions += `<option value="${team}" ${selected}>Dołącz do: ${team}</option>`;
+        });
+        teamOptions += `<option disabled>──────────</option><option value="__NEW__" class="font-bold text-seaviaBlue">➕ Utwórz nowy...</option>`;
+
+        sectionHtml += `
+          <div class="p-4 md:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-blue-50/30 transition-colors">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+              <span class="font-bold text-slate-700 text-base min-w-[200px]">${tech.name}</span>
+              <button onclick="toggleTechStatus('${tech.name}', '${newStatusToSet}', this)" class="border ${statusColor} px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider inline-flex items-center transition-all w-max shadow-sm hover:opacity-80">
+                <i class="fa-solid fa-circle text-[8px] mr-1.5 ${statusDot}"></i> ${isActive ? 'Aktywny' : 'Nieaktywny'}
+              </button>
+            </div>
+            <div class="flex-grow max-w-sm">${compactDecks}</div>
+            <div class="flex items-center justify-between lg:justify-end gap-4 w-full lg:w-auto mt-2 lg:mt-0 pt-3 lg:pt-0 border-t lg:border-0 border-slate-100">
+              <div class="text-right flex flex-col">
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Suma</span>
+                <span class="font-black text-xl text-candidoRed leading-none">${Math.round(tech.totalHours)}h</span>
+              </div>
+              <div class="w-48">
+                <select onchange="changeTechTeam('${tech.name}', this)" class="team-select w-full text-[11px] font-bold border border-slate-300 rounded p-2 bg-slate-50 focus:ring-2 focus:ring-seaviaBlue focus:bg-white cursor-pointer shadow-sm text-seaviaBlue">
+                  ${teamOptions}
+                </select>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      sectionHtml += `</div></div>`;
+      return sectionHtml;
+    };
+
+    const sortedKeys = Object.keys(grouped).filter(k => k !== '__UNASSIGNED__').sort();
+    sortedKeys.forEach(key => { accordionHtml += buildTeamSection(key, grouped[key]); });
+    if (grouped['__UNASSIGNED__']) accordionHtml += buildTeamSection('__UNASSIGNED__', grouped['__UNASSIGNED__']);
+    
+    containerAccordion.innerHTML = accordionHtml;
+
+    // Przywrócenie wybranego widoku z pamięci podręcznej przeglądarki (żeby po odświeżeniu nie resetowało)
+    switchTechView(currentTechView);
+  }
+
+  // LOGIKA DODAWANIA NOWEGO ZESPOŁU BEZPOŚREDNIO NA EKRANIE
+  function promptAddTeam() {
+    let newTeam = prompt("Podaj nazwę nowego zespołu (np. Malarze):");
+    if (newTeam && newTeam.trim() !== '') {
+      newTeam = newTeam.trim();
+      
+      let exists = false;
+      const selects = document.querySelectorAll('.team-select');
+      if (selects.length > 0) {
+        Array.from(selects[0].options).forEach(opt => {
+          if (opt.value.toLowerCase() === newTeam.toLowerCase()) exists = true;
+        });
+      }
+      
+      if (exists) {
+        alert("Zespół o takiej nazwie już znajduje się na liście!");
+        return;
+      }
+
+      // Wstrzykiwanie nowego zespołu do wszystkich list rozwijanych
+      selects.forEach(select => {
+        let opt = document.createElement('option');
+        opt.value = newTeam;
+        opt.innerText = newTeam;
+        
+        let separatorIndex = Array.from(select.options).findIndex(o => o.disabled && o.text.includes('──'));
+        if (separatorIndex > -1) {
+          select.insertBefore(opt, select.options[separatorIndex]);
+        } else {
+          select.appendChild(opt);
+        }
+      });
+      
+      alert(`Zespół "${newTeam}" został dodany do list rozwijanych.\n\nAby zapisać go w systemie na stałe, wybierz go teraz z listy przy nazwisku dowolnego technika.`);
+    }
+  }
+
+  // Akcje wymuszające połączenie z serwerem
+  function toggleTechStatus(name, newStatus, btnElement) {
+    if (btnElement.disabled) return;
+    const originalContent = btnElement.innerHTML;
+    btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>';
+    btnElement.classList.add('opacity-50', 'cursor-not-allowed');
+    btnElement.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if(res.success) { if(typeof refreshData === 'function') refreshData(); } 
+        else { alert("Błąd: " + res.message); btnElement.innerHTML = originalContent; btnElement.classList.remove('opacity-50', 'cursor-not-allowed'); btnElement.disabled = false; }
+      })
+      .toggleTechnicianStatus(name, newStatus);
+  }
+
+  function changeTechTeam(techName, selectElement) {
+    let newTeam = selectElement.value;
+    if (newTeam === '__NEW__') {
+      newTeam = prompt("Wpisz nazwę nowej drużyny dla technika " + techName + ":");
+      if (newTeam === null || newTeam.trim() === '') { if(typeof refreshData === 'function') refreshData(); return; }
+      newTeam = newTeam.trim();
+    }
+    selectElement.disabled = true;
+    selectElement.classList.add('opacity-50', 'animate-pulse');
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if(res.success) { if(typeof refreshData === 'function') refreshData(); } 
+        else { alert("Błąd: " + res.message); if(typeof refreshData === 'function') refreshData(); }
+      })
+      .assignTechnicianToTeam(techName, newTeam);
+  }
+</script>

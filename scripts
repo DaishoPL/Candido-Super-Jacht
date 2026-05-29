@@ -33,17 +33,9 @@
     console.log("Dane pobrane z serwera:", data);
     appData = data;
     
-    // --- Uzupełnianie KARTY ZADAŃ ---
-    const techSelect = document.getElementById('technician');
-    if(techSelect) {
-      techSelect.innerHTML = '<option value="" disabled selected>Wybierz z listy...</option>';
-      if (data.technicians) {
-        data.technicians.forEach(tech => {
-          let opt = document.createElement('option');
-          opt.value = tech; opt.innerText = tech;
-          techSelect.appendChild(opt);
-        });
-      }
+    // Konfiguracja przełącznika Technik/Team
+    if (typeof switchAssignMode === 'function') {
+      switchAssignMode();
     }
 
     const deckSelect = document.getElementById('deckSelect');
@@ -67,31 +59,77 @@
     if (loadingScreen) loadingScreen.classList.add('hidden');
     if (mainContent) mainContent.classList.remove('hidden');
     
-    // ========================================================
-    // TO JEST KLUCZOWY MOMENT - WYZWALAMY SKRYPT REALIZACJI!
-    // ========================================================
-    if (typeof initDashboard === 'function') {
-      console.log("Wywyołuję initDashboard...");
-      initDashboard(data);
-    } else {
-      console.error("BŁĄD: Nie znaleziono funkcji initDashboard! Czy w pliku Index ładujesz Scripts_Realizacja?");
-      // Awaryjne usunięcie kropek, jeśli skrypt nie został podpięty
-      if(document.getElementById('dashTotalProgress')) document.getElementById('dashTotalProgress').innerText = "Brak Skryptu";
-    }
+    // Uruchomienie zew. skryptów
+    if (typeof initDashboard === 'function') initDashboard(data);
+    if (typeof renderTechnicians === 'function') renderTechnicians(data);
   }
 
+  // --- NOWE: OBSŁUGA PRZEŁĄCZNIKA TECHNIK / TEAM ---
+  function switchAssignMode() {
+    const modeObj = document.querySelector('input[name="assignMode"]:checked');
+    if (!modeObj || !appData) return;
+    const mode = modeObj.value;
+    
+    const targetSelect = document.getElementById('assignTarget');
+    const label = document.getElementById('assignTargetLabel');
+
+    targetSelect.innerHTML = '<option value="" disabled selected>Wybierz...</option>';
+
+    if (mode === 'tech') {
+      label.innerText = 'Wybierz technika';
+      if (appData.techniciansDetails) {
+        appData.techniciansDetails.forEach(tech => {
+           let opt = document.createElement('option');
+           opt.value = tech.name; opt.innerText = tech.name;
+           targetSelect.appendChild(opt);
+        });
+      }
+    } else {
+      label.innerText = 'Wybierz drużynę (Team)';
+      if (appData.techniciansDetails) {
+        const teams = [...new Set(appData.techniciansDetails.map(t => t.team).filter(t => t && t !== ''))].sort();
+        teams.forEach(team => {
+           let opt = document.createElement('option');
+           opt.value = team; opt.innerText = team;
+           targetSelect.appendChild(opt);
+        });
+      }
+    }
+    onTargetOrDateChange();
+  }
+
+
   // 3. OBSŁUGA FORMULARZA KARTY ZADAŃ
-  function onTechOrDateChange() {
-    const tech = document.getElementById('technician').value;
+  function onTargetOrDateChange() {
+    const modeObj = document.querySelector('input[name="assignMode"]:checked');
+    if(!modeObj) return;
+    const mode = modeObj.value;
+    const target = document.getElementById('assignTarget').value;
     const date = document.getElementById('workDate').value;
     const scheduleSection = document.getElementById('scheduleSection');
     const scheduleList = document.getElementById('scheduleList');
+    const scheduleTitle = document.getElementById('scheduleTitle');
 
     resetTimeErrors();
 
-    if (tech && date && scheduleSection) {
-      scheduleList.innerHTML = '<li class="text-slate-500 italic"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Sprawdzanie harmonogramu...</li>';
+    if (target && date && scheduleSection) {
+      scheduleList.innerHTML = '<li class="text-slate-500 italic"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Pobieranie harmonogramu...</li>';
       scheduleSection.classList.remove('hidden');
+
+      scheduleTitle.innerText = mode === 'tech' ? 'Dzisiejszy harmonogram technika' : 'Dzisiejszy harmonogram teamu';
+
+      // Ustalamy kogo pytamy o grafik
+      let techsToQuery = [];
+      if (mode === 'tech') {
+         techsToQuery.push(target);
+      } else {
+         techsToQuery = appData.techniciansDetails.filter(t => t.team === target).map(t => t.name);
+      }
+
+      if (techsToQuery.length === 0) {
+         scheduleList.innerHTML = '<li class="text-orange-500 font-medium">Brak przypisanych techników do tego teamu.</li>';
+         return;
+      }
 
       google.script.run
         .withSuccessHandler(tasks => {
@@ -101,8 +139,11 @@
           } else {
             scheduleList.innerHTML = tasks.map(t => 
               `<li class="flex justify-between items-center group py-1 border-b border-slate-100 last:border-0">
-                 <span><span class="text-candidoRed font-bold mr-2">${t.start} - ${t.end}</span> <span class="text-slate-400">|</span> ${t.deck} <span class="text-slate-400">|</span> ${t.taskName}</span>
-                 <button type="button" onclick="cancelTask(${t.dbRowIndex})" class="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1 px-2" title="Anuluj to zadanie">
+                 <span>
+                   ${mode === 'team' ? `<span class="font-bold text-slate-500 mr-2">[${t.techName}]</span>` : ''}
+                   <span class="text-candidoRed font-bold mr-2">${t.start} - ${t.end}</span> <span class="text-slate-400">|</span> ${t.deck} <span class="text-slate-400">|</span> ${t.taskName}
+                 </span>
+                 <button type="button" onclick="cancelTask(${t.dbRowIndex})" class="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1 px-2" title="Anuluj to zadanie w bazie">
                    <i class="fa-solid fa-trash-can"></i>
                  </button>
                </li>`
@@ -110,7 +151,7 @@
           }
           validateTimes();
         })
-        .getTechnicianTasksForDate(tech, date);
+        .getTasksForTechnicians(techsToQuery, date);
     } else if(scheduleSection) {
       scheduleSection.classList.add('hidden');
       currentTechSchedule = [];
@@ -118,17 +159,17 @@
   }
 
   function cancelTask(rowIndex) {
-    if(confirm("Czy na pewno chcesz anulować to zadanie z dzisiejszego harmonogramu? (Godziny zostaną skasowane, a w bazie zostanie ślad usunięcia)")) {
+    if(confirm("Czy na pewno chcesz anulować to zadanie? (Ślad po usunięciu zostanie w bazie)")) {
       const scheduleList = document.getElementById('scheduleList');
       scheduleList.innerHTML = '<li class="text-slate-500 italic"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Usuwanie...</li>';
       
       google.script.run
         .withSuccessHandler(res => {
           if(res && res.success) {
-            onTechOrDateChange();
+            onTargetOrDateChange();
           } else {
             alert("Błąd usuwania: " + (res ? res.message : 'Brak odpowiedzi'));
-            onTechOrDateChange();
+            onTargetOrDateChange();
           }
         })
         .cancelWorkReport(rowIndex);
@@ -146,17 +187,25 @@
       return;
     }
 
-    let conflictTask = null;
+    let conflictTasks = [];
     if (currentTechSchedule && currentTechSchedule.length > 0) {
         for (let task of currentTechSchedule) {
           if (timeStart < task.end && timeEnd > task.start) {
-            conflictTask = task;
-            break;
+            conflictTasks.push(task);
           }
         }
     }
-    if (conflictTask) {
-      showTimeError(`Zazębia się z: ${conflictTask.start} - ${conflictTask.end} (${conflictTask.deck}).`);
+    
+    if (conflictTasks.length > 0) {
+      const mode = document.querySelector('input[name="assignMode"]:checked').value;
+      if (mode === 'team') {
+         // Wypisujemy konkretne nazwiska, jeśli jesteśmy w trybie teamu
+         let conflictNames = [...new Set(conflictTasks.map(t => t.techName))].join(', ');
+         showTimeError(`Zazębia się! Konflikt u: ${conflictNames}`);
+      } else {
+         let conflict = conflictTasks[0];
+         showTimeError(`Zazębia się z czasem: ${conflict.start} - ${conflict.end}`);
+      }
     }
   }
 
@@ -234,7 +283,6 @@
 
     if (area === "__CUSTOM__") {
       if(customAreaInput) customAreaInput.classList.remove('hidden');
-      
       taskSelect.disabled = false;
       taskSelect.classList.remove('bg-gray-100', 'opacity-60');
       taskSelect.classList.add('bg-white');
@@ -244,11 +292,9 @@
       customTaskOpt.innerText = "➕ Wpisz zadanie ręcznie";
       customTaskOpt.selected = true;
       taskSelect.appendChild(customTaskOpt);
-      
       onTaskChange(); 
     } else {
       if(customAreaInput) customAreaInput.classList.add('hidden');
-
       if (deck && area && appData && appData.tasksTree && appData.tasksTree[deck] && appData.tasksTree[deck][area]) {
         appData.tasksTree[deck][area].forEach(t => {
           let opt = document.createElement('option');
@@ -257,7 +303,6 @@
           opt.dataset.progress = t.progress;
           taskSelect.appendChild(opt);
         });
-        
         let customOpt = document.createElement('option');
         customOpt.value = "__CUSTOM__";
         customOpt.innerText = "➕ Inne zadanie (wpisz ręcznie)";
@@ -322,12 +367,31 @@
       if(!selectedTask) { alert("Wpisz nazwę zadania!"); return; }
     }
 
+    // Ustalanie kto dostanie zadanie (Jeden technik czy cała lista)
+    let techsToAssign = [];
+    const mode = document.querySelector('input[name="assignMode"]:checked').value;
+    const target = document.getElementById('assignTarget').value;
+    
+    if (!target) { alert("Wybierz technika lub team!"); return; }
+
+    if (mode === 'tech') {
+       techsToAssign.push(target);
+    } else {
+       techsToAssign = appData.techniciansDetails.filter(t => t.team === target).map(t => t.name);
+    }
+
+    if (techsToAssign.length === 0) {
+      alert("Wybrana grupa nie ma techników. Nie można przypisać zadania.");
+      return;
+    }
+
     const btn = document.getElementById('submitBtn');
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Zapisywanie...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Zapisywanie w bazie...';
     btn.disabled = true;
 
+    // Przekazujemy tablicę technicians!
     const formData = {
-      technician: document.getElementById('technician').value,
+      techniciansArray: techsToAssign, 
       workDate: document.getElementById('workDate').value,
       timeStart: timeStart,
       timeEnd: timeEnd,
@@ -342,7 +406,7 @@
       .withSuccessHandler(res => {
         if (res && res.success) {
           alert(res.message);
-          onTechOrDateChange();
+          onTargetOrDateChange();
           document.getElementById('deckSelect').value = "";
           document.getElementById('timeStart').value = ""; 
           document.getElementById('timeEnd').value = "";
@@ -354,5 +418,23 @@
         btn.disabled = false;
       })
       .submitWorkReport(formData);
+  }
+
+  function promptAddTechnician() {
+    const name = prompt("Podaj imię i nazwisko nowego technika:");
+    if (name && name.trim() !== "") {
+      refreshData();
+      google.script.run
+        .withSuccessHandler(response => {
+          if(response.success) {
+            alert(response.message);
+            fetchData();
+          } else {
+            alert("Błąd: " + response.message);
+            fetchData();
+          }
+        })
+        .addTechnician(name);
+    }
   }
 </script>

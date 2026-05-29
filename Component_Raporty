@@ -1,9 +1,255 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <base target="_top">
-  </head>
-  <body>
+<!-- Wymagane biblioteki do eksportu (PDF i Excel) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<div class="bg-white rounded-lg shadow-sm p-4 md:p-8 border border-gray-100 animate-fade-in">
+  
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-seaviaBlue">Raporty Tygodniowe</h2>
+      <p class="text-sm text-slate-500 mt-1">Generuj rozliczenia godzinowe (Candido) dla wybranych tygodni.</p>
+    </div>
+  </div>
+
+  <!-- Panel Sterowania -->
+  <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-8 flex flex-col md:flex-row gap-6 items-end">
     
-  </body>
-</html>
+    <div class="w-full md:w-auto">
+      <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Wybierz dowolny dzień z tygodnia</label>
+      <input type="date" id="reportDate" class="w-full md:w-48 border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
+    </div>
+
+    <div class="w-full md:w-auto flex items-center h-[42px]">
+      <label class="flex items-center space-x-2 cursor-pointer group">
+        <input type="checkbox" id="reportIncludeBreaks" class="w-5 h-5 rounded text-seaviaBlue focus:ring-seaviaBlue border-slate-300">
+        <span class="text-sm font-bold text-slate-700 group-hover:text-seaviaBlue transition-colors">Wliczaj płatne przerwy (Breaks) do sumy czasu</span>
+      </label>
+    </div>
+
+    <div class="w-full md:w-auto ml-auto">
+      <button onclick="fetchWeeklyReport()" id="btnGenerateReport" class="w-full bg-seaviaBlue hover:bg-[#0a1e38] text-white font-bold py-2.5 px-6 rounded shadow-sm transition-all flex items-center justify-center">
+        <i class="fa-solid fa-bolt mr-2"></i> Generuj Raport
+      </button>
+    </div>
+  </div>
+
+  <!-- Wynik Raportu -->
+  <div id="reportContainer" class="hidden">
+     <!-- Przyciski Pobierania -->
+     <div class="flex flex-col sm:flex-row justify-end gap-3 mb-6 border-b border-slate-200 pb-6">
+        <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-5 rounded text-sm shadow-sm transition-all flex items-center justify-center">
+          <i class="fa-solid fa-file-excel mr-2"></i> Pobierz XLSX (Excel)
+        </button>
+        <button onclick="exportToPDF()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded text-sm shadow-sm transition-all flex items-center justify-center">
+          <i class="fa-solid fa-file-pdf mr-2"></i> Pobierz PDF
+        </button>
+     </div>
+
+     <!-- Miejsce na generowane tabele (Ten obszar "łapie" PDF) -->
+     <div id="reportContent" class="bg-white p-2 sm:p-6 mx-auto max-w-5xl">
+        <!-- Tutaj wpadnie JS -->
+     </div>
+  </div>
+
+</div>
+
+<script>
+  let currentReportData = null;
+
+  // Inicjalizacja dzisiejszej daty
+  document.addEventListener("DOMContentLoaded", () => {
+     const today = new Date().toISOString().split('T')[0];
+     const dateInput = document.getElementById('reportDate');
+     if(dateInput) dateInput.value = today;
+  });
+
+  function fetchWeeklyReport() {
+    const dateStr = document.getElementById('reportDate').value;
+    const includeBreaks = document.getElementById('reportIncludeBreaks').checked;
+    const btn = document.getElementById('btnGenerateReport');
+    
+    if (!dateStr) { alert("Wybierz datę!"); return; }
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Generowanie...';
+    btn.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(data => {
+        currentReportData = data;
+        renderReport(data);
+        btn.innerHTML = '<i class="fa-solid fa-bolt mr-2"></i> Generuj Raport';
+        btn.disabled = false;
+      })
+      .withFailureHandler(err => {
+        alert("Błąd: " + err);
+        btn.innerHTML = '<i class="fa-solid fa-bolt mr-2"></i> Generuj Raport';
+        btn.disabled = false;
+      })
+      .getCandidoWeeklyReport(dateStr, includeBreaks);
+  }
+
+  function renderReport(data) {
+    const container = document.getElementById('reportContainer');
+    const content = document.getElementById('reportContent');
+    
+    if (!data || Object.keys(data.decks).length === 0) {
+       content.innerHTML = '<div class="text-center text-slate-500 py-8 font-medium bg-slate-50 rounded-lg"><i class="fa-solid fa-folder-open text-3xl mb-3 block"></i>Brak wykonanych prac w wybranym tygodniu.</div>';
+       container.classList.remove('hidden');
+       return;
+    }
+
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    let html = `
+      <!-- Górny blok informacyjny -->
+      <div class="bg-white p-3 border border-slate-300 mb-8 w-max min-w-[320px]">
+         <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Szczegóły raportu</p>
+         <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+           <span class="font-bold text-slate-700">Project name:</span> <span class="text-right text-seaviaBlue font-bold">ODIN (Candido)</span>
+           <span class="font-bold text-slate-700">Week no.:</span> <span class="text-right text-seaviaBlue font-bold">${data.weekInfo.weekNumber}</span>
+           <span class="font-bold text-slate-700">Date range:</span> <span class="text-right font-mono">${data.weekInfo.start} / ${data.weekInfo.end}</span>
+           <span class="font-bold text-slate-700">Paid Breaks:</span> <span class="text-right ${data.settings.includeBreaks ? 'text-emerald-600' : 'text-slate-400'} font-bold">${data.settings.includeBreaks ? 'YES' : 'NO'}</span>
+         </div>
+      </div>
+      
+      <!-- Kontener Flexbox wymuszający ułożenie tabel jedna pod drugą pionowo -->
+      <div class="flex flex-col gap-y-10" id="pdf-export-wrapper">
+    `;
+
+    Object.keys(data.decks).sort().forEach(deckName => {
+        let deckData = data.decks[deckName].tasks || {};
+
+        html += `
+        <div class="w-full bg-white border border-slate-300 shadow-sm">
+            <div class="bg-slate-100 p-2 border-b border-slate-300">
+                <h3 class="font-black text-seaviaBlue text-[11px] uppercase tracking-wider">WEEKLY SUM ${deckName}</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-[10px] sm:text-[11px]">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-600">
+                            <th class="p-1 border-b border-r border-slate-300 text-center w-8">No.</th>
+                            <th class="p-1 border-b border-r border-slate-300 min-w-[180px]">Tasks</th>
+                            <th class="p-1 border-b border-r border-slate-300 text-center w-12 font-bold bg-slate-200">Total</th>
+                            ${days.map((d, i) => `<th class="p-1 border-b ${i < 6 ? 'border-r' : ''} border-slate-300 text-center w-10">${d}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        const renderRow = (taskName, index) => {
+            let hours = deckData[taskName] || [0, 0, 0, 0, 0, 0, 0];
+            let total = hours.reduce((a, b) => a + b, 0);
+            
+            let rowHtml = `<tr class="border-b border-slate-200 hover:bg-blue-50/50">
+                <td class="p-1 border-r border-slate-300 text-center text-slate-500 font-medium">${index}</td>
+                <td class="p-1 border-r border-slate-300 font-bold text-slate-700 leading-tight">${taskName}</td>`;
+
+            // Kolumna Total PRZED dniami tygodnia
+            let totalClass = total > 0 ? 'bg-green-200 text-green-900 font-black' : 'bg-slate-100 text-slate-400';
+            rowHtml += `<td class="p-1 border-r border-slate-300 text-center ${totalClass}">${total > 0 ? total : '0'}</td>`;
+
+            // Dni tygodnia
+            hours.forEach((h, i) => {
+                let cellClass = h > 0 ? 'bg-green-100 text-green-800 font-black' : 'text-slate-300';
+                rowHtml += `<td class="p-1 ${i < 6 ? 'border-r' : ''} border-slate-300 text-center ${cellClass}">${h > 0 ? h : '0'}</td>`;
+            });
+
+            rowHtml += `</tr>`;
+            return rowHtml;
+        };
+
+        // Supervision zawsze na sztywno z numerem 0
+        html += renderRow("Supervision", 0);
+
+        // Filtrowanie zadań - wyrzucamy Break jeśli nie są wliczane do raportu
+        let filteredTasks = data.allTasks;
+        if (!data.settings.includeBreaks) {
+            filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
+        }
+
+        // Reszta unikalnych zadań posortowanych alfabetycznie od numeru 1
+        let taskIndex = 1;
+        filteredTasks.forEach(taskName => {
+            html += renderRow(taskName, taskIndex++);
+        });
+
+        html += `</tbody></table></div></div>`;
+    });
+
+    html += `</div>`;
+    content.innerHTML = html;
+    container.classList.remove('hidden');
+  }
+
+  function exportToPDF() {
+    if (!currentReportData) return;
+    if (typeof html2pdf === 'undefined') {
+        alert("Trwa ładowanie biblioteki PDF. Spróbuj ponownie za chwilę.");
+        return;
+    }
+    
+    // Ustawiamy szerokość na sztywno do PDF-a, żeby ładnie dopasował skalę
+    const element = document.getElementById('reportContent'); 
+    const opt = {
+      margin:       0.3,
+      filename:     `Candido_Weekly_Report_${currentReportData.weekInfo.weekNumber}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' } 
+    };
+
+    html2pdf().set(opt).from(element).save();
+  }
+
+  function exportToExcel() {
+    if (!currentReportData) return;
+    if (typeof XLSX === 'undefined') {
+        alert("Trwa ładowanie biblioteki Excel. Spróbuj ponownie za chwilę.");
+        return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const wsData = [];
+
+    // Nagłówek raportu w pliku Excel
+    wsData.push(["Project name:", "ODIN (Candido)"]);
+    wsData.push(["Week no.:", currentReportData.weekInfo.weekNumber]);
+    wsData.push(["Date range:", currentReportData.weekInfo.start + " - " + currentReportData.weekInfo.end]);
+    wsData.push(["Paid Breaks:", currentReportData.settings.includeBreaks ? "YES" : "NO"]);
+    wsData.push([]); 
+
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    Object.keys(currentReportData.decks).sort().forEach(deckName => {
+        let deckData = currentReportData.decks[deckName].tasks || {};
+
+        wsData.push([`WEEKLY SUM ${deckName}`]);
+        // Total PRZED dniami tygodnia w pliku Excel
+        wsData.push(["No.", "Tasks", "Total", ...days]);
+
+        const addRow = (taskName, index) => {
+            let hours = deckData[taskName] || [0,0,0,0,0,0,0];
+            let total = hours.reduce((a,b)=>a+b,0);
+            wsData.push([index, taskName, total, ...hours]);
+        };
+
+        addRow("Supervision", 0);
+        let taskIndex = 1;
+
+        // Filtrowanie zadań dla Excela
+        let filteredTasks = currentReportData.allTasks;
+        if (!currentReportData.settings.includeBreaks) {
+            filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
+        }
+
+        filteredTasks.forEach(t => addRow(t, taskIndex++));
+        
+        wsData.push([]); // Pusty wiersz oddzielający pokłady w Excelu
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, "Weekly Report");
+    XLSX.writeFile(wb, `Candido_Weekly_Report_${currentReportData.weekInfo.weekNumber}.xlsx`);
+  }
+</script>

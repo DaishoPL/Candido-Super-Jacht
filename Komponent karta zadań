@@ -1,0 +1,189 @@
+<div class="bg-white rounded-lg shadow-sm p-8 border border-gray-100 animate-fade-in">
+  <h2 class="text-2xl font-bold text-seaviaBlue mb-6 border-b pb-2"><i class="fa-solid fa-chart-pie mr-2 text-candidoRed"></i> Status Realizacji Projektu</h2>
+  
+  <!-- Górne Statystyki -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
+      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Wykonanie Projektu</p>
+      <p class="text-3xl font-bold text-candidoRed" id="dashTotalProgress">0%</p>
+      <p class="text-[10px] text-slate-400 mt-1">Średnia ważona z czasu</p>
+    </div>
+    
+    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
+      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Wypracowane Godziny</p>
+      <p class="text-3xl font-bold text-seaviaBlue" id="dashTotalHours">0h</p>
+      <p class="text-[10px] text-slate-400 mt-1">Cały projekt</p>
+    </div>
+    
+    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
+      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Obecni Technicy</p>
+      <p class="text-3xl font-bold text-emerald-600" id="dashActiveTechs">0</p>
+      <p class="text-[10px] text-slate-400 mt-1">Status: Aktywny</p>
+    </div>
+    
+    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
+      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Wszyscy Technicy</p>
+      <p class="text-3xl font-bold text-slate-600" id="dashTotalTechs">0</p>
+      <p class="text-[10px] text-slate-400 mt-1">Zapisani w bazie</p>
+    </div>
+  </div>
+
+  <!-- Główny Wykres Projektu -->
+  <div class="mb-10 bg-slate-50 p-6 border border-slate-200 rounded-lg shadow-inner">
+    <h3 class="text-lg font-bold text-seaviaBlue mb-2 text-center">Rozkład Godzin na Pokłady</h3>
+    <div class="relative w-full max-w-md mx-auto" style="height: 300px;">
+      <!-- Tekst w środku pierścienia -->
+      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-2">
+        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Suma Wyświetlana</span>
+        <span id="centerChartHours" class="text-3xl font-bold text-seaviaBlue">0h</span>
+      </div>
+      <canvas id="mainProjectChart"></canvas>
+    </div>
+    <p class="text-[10px] text-center text-slate-400 mt-2"><i class="fa-solid fa-hand-pointer mr-1"></i> Kliknij w elementy legendy, aby odfiltrować pokłady. Godziny przeliczą się automatycznie.</p>
+  </div>
+</div>
+
+<!-- ========================================================= -->
+<!-- SKRYPTY TYLKO DLA TEGO KOMPONENTU (Izolacja logiki)       -->
+<!-- ========================================================= -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  let mainChartInstance = null;
+  let lastDataChecksum = "";
+
+  // Automatyczny obserwator, który czeka aż główny plik (Scripts.html) pobierze `appData`
+  function watchForData() {
+    if (typeof appData !== 'undefined' && appData && appData.tasksTree) {
+      // Prosty sposób na sprawdzenie, czy dane się zmieniły (np. po kliknięciu "Odśwież")
+      let currentChecksum = JSON.stringify(appData.techStats) + appData.totalWorkedHours;
+      if (currentChecksum !== lastDataChecksum) {
+        initDashboard(appData);
+        lastDataChecksum = currentChecksum;
+      }
+    }
+    // Sprawdzaj co 1 sekundę
+    setTimeout(watchForData, 1000);
+  }
+
+  // Uruchomienie obserwatora
+  watchForData();
+
+  // Główna logika obliczeniowa Dashboardu
+  function initDashboard(data) {
+    // 1. Zasilenie górnych liczników z techników
+    if (data.techStats) {
+      document.getElementById('dashTotalTechs').innerText = data.techStats.total;
+      document.getElementById('dashActiveTechs').innerText = data.techStats.active;
+    }
+    
+    // 2. Całkowite godziny z backendu
+    document.getElementById('dashTotalHours').innerText = Math.round(data.totalWorkedHours || 0) + 'h';
+
+    // 3. Zaawansowana matematyka: Średnia ważona czasu
+    let totalProjectPlannedDays = 0;
+    let weightedProgressSum = 0;
+    let hoursByDeck = {};
+
+    Object.keys(data.tasksTree).forEach(deck => {
+      let deckHours = 0;
+
+      Object.keys(data.tasksTree[deck]).forEach(area => {
+        data.tasksTree[deck][area].forEach(task => {
+          
+          let weight = task.plannedDays || 1; // Waga czasowa zadania
+          let progress = task.progress || 0;
+          let hours = task.workedHours || 0;
+          
+          totalProjectPlannedDays += weight;
+          weightedProgressSum += (progress * weight);
+          deckHours += hours;
+        });
+      });
+
+      if(deckHours > 0) {
+        hoursByDeck[deck] = deckHours;
+      }
+    });
+
+    // Wyliczenie % całości na bazie wagi czasowej
+    let finalProjectProgress = 0;
+    if (totalProjectPlannedDays > 0) {
+      finalProjectProgress = Math.round(weightedProgressSum / totalProjectPlannedDays);
+    }
+    document.getElementById('dashTotalProgress').innerText = finalProjectProgress + '%';
+
+    // 4. Rysowanie Głównego Wykresu Pierścieniowego
+    drawMainChart(hoursByDeck);
+  }
+
+  function drawMainChart(hoursByDeck) {
+    const ctx = document.getElementById('mainProjectChart');
+    if (!ctx) return;
+
+    if (mainChartInstance) {
+      mainChartInstance.destroy();
+    }
+
+    const labels = Object.keys(hoursByDeck);
+    const dataValues = Object.values(hoursByDeck).map(v => Math.round(v));
+    
+    // Brak danych do narysowania
+    if(labels.length === 0) {
+      document.getElementById('centerChartHours').innerText = '0h';
+      return;
+    }
+    
+    const bgColors = ['#0f2d52', '#e53e3e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b', '#0ea5e9'];
+
+    mainChartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: dataValues,
+          backgroundColor: bgColors.slice(0, labels.length),
+          borderWidth: 2,
+          borderColor: '#ffffff'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%', 
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { padding: 20, font: { family: 'Inter', size: 12 } },
+            onClick: function(e, legendItem, legend) {
+              Chart.defaults.plugins.legend.onClick.call(this, e, legendItem, legend);
+              updateCenterHours(legend.chart);
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return ' ' + context.label + ': ' + context.raw + 'h';
+              }
+            }
+          }
+        },
+        animation: {
+          onComplete: function(animation) {
+             updateCenterHours(animation.chart);
+          }
+        }
+      }
+    });
+  }
+
+  function updateCenterHours(chart) {
+    let total = 0;
+    chart.data.datasets[0].data.forEach((val, index) => {
+      // Sprawdza, czy element jest widoczny i sumuje do środka
+      if (chart.getDataVisibility(index)) {
+        total += val;
+      }
+    });
+    document.getElementById('centerChartHours').innerText = total + 'h';
+  }
+</script>

@@ -3,11 +3,15 @@
  */
 
 function doGet() {
-  return HtmlService.createTemplateFromFile('index')
+  return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('Seavia - Panel Brygadzisty')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
 /**
@@ -16,22 +20,61 @@ function doGet() {
 function getInitialData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
+  // 1. TECHNICY (Z BAZY)
   let technicians = [];
+  let techStats = { total: 0, active: 0 };
   const dataSheet = ss.getSheetByName('Data sheet');
   if (dataSheet) {
     const lastRow = dataSheet.getLastRow();
     if (lastRow >= 9) {
-      const techData = dataSheet.getRange(9, 2, lastRow - 8, 1).getValues();
-      technicians = techData.map(r => String(r[0]).trim()).filter(n => n !== "");
+      const techData = dataSheet.getRange(9, 2, lastRow - 8, 2).getValues(); // B i C
+      techData.forEach(r => {
+        let name = String(r[0]).trim();
+        let status = String(r[1]).trim().toLowerCase();
+        if (name !== "") {
+          technicians.push(name);
+          techStats.total++;
+          if (status === "aktywny" || status === "active") techStats.active++;
+        }
+      });
     }
   }
 
+  // 2. SUMOWANIE PRZEPRACOWANYCH GODZIN (Ze spisu)
+  let totalWorkedHours = 0;
+  let workedHoursByTask = {}; 
+  const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
+  if (sheetSpis && sheetSpis.getLastRow() >= 2) {
+    // --- KLUCZOWA ZMIANA ---
+    // Używamy getDisplayValues(), aby pobrać wartości dokładnie tak, jak są wyświetlane w arkuszu (np. "07:00")
+    // To zapobiega błędom stref czasowych i dziwnych obiektów Date.
+    const spisData = sheetSpis.getRange(2, 2, sheetSpis.getLastRow() - 1, 6).getDisplayValues(); 
+    spisData.forEach(row => {
+      let timeStart = String(row[0]).trim(); // B
+      let timeEnd = String(row[1]).trim();   // C
+      let deck = String(row[2]).trim();      // D
+      let taskName = String(row[4]).trim();  // F
+      let isCancelled = String(row[4]).includes("[ANULOWANE]");
+
+      if (timeStart && timeEnd && !isCancelled) {
+        let duration = parseWorkTimeBackend(timeEnd) - parseWorkTimeBackend(timeStart);
+        if (duration < 0) duration += 24; // Przejście przez północ
+        if (duration > 0) {
+          totalWorkedHours += duration;
+          let key = deck + "_" + taskName;
+          if(!workedHoursByTask[key]) workedHoursByTask[key] = 0;
+          workedHoursByTask[key] += duration;
+        }
+      }
+    });
+  }
+
+  // 3. DRZEWO ZADAŃ (Zakładka Candido)
   let tasksTree = {}; 
   const sheetCandido = ss.getSheetByName('Candido');
   if (sheetCandido) {
     const lastRow = sheetCandido.getLastRow();
     
-    // Pobieramy dane do ostatniego wpisanego wiersza
     if (lastRow >= 3) {
       const data = sheetCandido.getRange(1, 1, lastRow, 16).getValues();
       
@@ -39,55 +82,58 @@ function getInitialData() {
       let currentArea = "";
       
       for (let i = 2; i < data.length; i++) {
-        // Zabezpieczenie przed błędami odczytu i scalonymi komórkami
-        let deckVal = String(data[i][2] || "").trim(); // Główne poszukiwanie w Kolumnie C
+        let deckVal = String(data[i][2] || "").trim(); // C
+        if (deckVal === "" && String(data[i][1] || "").toLowerCase().includes("dk")) deckVal = String(data[i][1] || "").trim();
+        let areaVal = String(data[i][3] || "").trim(); // D
         
-        // Jeśli C jest puste, a w B jest tekst z "Dk" to znaczy że komórki mogły zostać scalone
-        if (deckVal === "" && String(data[i][1] || "").toLowerCase().includes("dk")) {
-            deckVal = String(data[i][1] || "").trim();
-        }
-
-        let areaVal = String(data[i][3] || "").trim(); // Kolumna D
-        
-        // Szukamy nazwy zadania
-        let taskName = String(data[i][8] || "").trim(); // Główne poszukiwanie w Kolumnie I
-        
-        // Fallback: Jeśli w I jest pusto, przy pracach dodatkowych tekst często jest w H lub J
+        let taskName = String(data[i][8] || "").trim(); // I
         if (taskName === "") {
             let taskH = String(data[i][7] || "").trim();
             let taskJ = String(data[i][9] || "").trim();
-            
-            if (taskH !== "" && !taskH.toLowerCase().includes("seavia")) {
-                taskName = taskH;
-            } else if (taskJ !== "") {
-                taskName = taskJ;
-            }
+            if (taskH !== "" && !taskH.toLowerCase().includes("seavia")) taskName = taskH;
+            else if (taskJ !== "") taskName = taskJ;
         }
         
-        let rowNumber = i + 1; 
+        // POBRANIE WAG CZASOWYCH (J i M)
+        let plannedStart = data[i][9]; // J
+        let plannedEnd = data[i][12]; // M
+        let plannedDays = 1;
+        if (plannedStart instanceof Date && plannedEnd instanceof Date) {
+          let diffTime = Math.abs(plannedEnd - plannedStart);
+          plannedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        }
+
+        // POBRANIE % Z KOLUMNY P
+        let rawProgress = data[i][15]; 
+        let progressNum = 0;
+        if (typeof rawProgress === 'number') {
+          progressNum = (rawProgress > 0 && rawProgress <= 1) ? Math.round(rawProgress * 100) : Math.round(rawProgress);
+        } else if (typeof rawProgress === 'string') {
+          progressNum = parseInt(rawProgress.replace('%', '').trim()) || 0;
+        }
         
-        // Rejestrujemy pokład NATYCHMIAST - to gwarantuje, że pojawi się w menu rozwijanym!
         if (deckVal !== "") {
-          currentDeck = deckVal;
-          currentArea = ""; // KRYTYCZNE: Resetujemy strefę przy zmianie pokładu
+          currentDeck = deckVal; currentArea = ""; 
           if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {};
         }
+        if (areaVal !== "") currentArea = areaVal;
         
-        if (areaVal !== "") {
-          currentArea = areaVal;
-        }
-        
-        // Ignorujemy dodanie samego zadania TYLKO jeśli nie ma żadnego pokładu lub nazwy zadania
         if (currentDeck === "" || taskName === "") continue;
-        
         let area = currentArea === "" ? "Brak strefy" : currentArea;
 
-        if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {}; // Upewniamy się, że gałąź istnieje
+        if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {}; 
         if (!tasksTree[currentDeck][area]) tasksTree[currentDeck][area] = [];
         
+        // Kojarzenie godzin z konkretnym zadaniem w drzewie
+        let key = currentDeck + "_" + taskName;
+        let taskHours = workedHoursByTask[key] || 0;
+
         tasksTree[currentDeck][area].push({
-          row: rowNumber,
-          taskName: taskName
+          row: i + 1,
+          taskName: taskName,
+          progress: progressNum,
+          plannedDays: plannedDays,
+          workedHours: taskHours
         });
       }
     }
@@ -95,8 +141,26 @@ function getInitialData() {
 
   return {
     technicians: technicians,
+    techStats: techStats,           // <--- DOŁĄCZONO STATUSY TECHNIKÓW
+    totalWorkedHours: totalWorkedHours, // <--- DOŁĄCZONO CAŁKOWITE GODZINY
     tasksTree: tasksTree
   };
+}
+
+// Funkcja pomocnicza do bezpiecznego przeliczania czasu start/koniec
+function parseWorkTimeBackend(val) {
+  if (!val) return 0;
+  // Nawet jeśli z jakiegoś powodu wpadnie tu obiekt Date, obsłużymy go
+  if (val instanceof Date) return val.getHours() + (val.getMinutes() / 60);
+  
+  let str = String(val).replace(',', '.').trim();
+  // Obsługa formatu "HH:MM" 
+  if (str.includes(':')) {
+    let parts = str.split(':');
+    return parseInt(parts[0]||0) + (parseInt(parts[1]||0)/60);
+  }
+  // Fallback do liczby, gdyby ktoś wpisał ręcznie 7.5
+  return parseFloat(str) || 0;
 }
 
 /**
@@ -116,7 +180,6 @@ function getTechnicianTasksForDate(techName, dateStr) {
   const rawDates = sheetSpis.getRange(2, 1, lastRow - 1, 1).getValues();
 
   for (let i = 0; i < data.length; i++) {
-    // Używamy parseDateToYMD by upewnić się, że data z arkusza pasuje do formatu HTML (YYYY-MM-DD)
     let rowDate = parseDateToYMD(rawDates[i][0]);
     let rowStart = data[i][1];
     let rowEnd = data[i][2];
@@ -124,34 +187,60 @@ function getTechnicianTasksForDate(techName, dateStr) {
     let rowTask = data[i][5];
     let rowTech = String(data[i][7]).trim().toLowerCase();
 
+    // POMIJAJ ZADANIA BEZ GODZIN (M.in. te, które zostały anulowane)
+    if (!rowStart || !rowEnd) continue;
+
     if (rowTech === techName.trim().toLowerCase() && rowDate === dateStr) {
       tasks.push({
         start: rowStart,
         end: rowEnd,
         deck: rowDeck,
-        taskName: rowTask
+        taskName: rowTask,
+        dbRowIndex: i + 2 
       });
     }
   }
   
-  // Sortowanie zadań chronologicznie po godzinie rozpoczęcia
   tasks.sort((a, b) => a.start.localeCompare(b.start));
   return tasks;
 }
 
-function addTechnician(name) {
-  if (!name || name.trim() === "") {
-    return { success: false, message: "Nazwisko nie może być puste!" };
+// ZMIENIONA FUNKCJA USUWAJĄCA - Zostawia ślad audytowy
+function cancelWorkReport(rowIndex) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
+    
+    if (sheetSpis) {
+      if (rowIndex > 1 && rowIndex <= sheetSpis.getLastRow()) {
+        
+        let userEmail = Session.getActiveUser().getEmail() || "Nieznany użytkownik";
+        let timestamp = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), "dd.MM.yyyy HH:mm");
+        
+        let cancelMsg = `[ANULOWANE] przez: ${userEmail} (${timestamp})`;
+        
+        // 1. Usuwamy godziny
+        sheetSpis.getRange(rowIndex, 2, 1, 2).clearContent();
+        
+        // 2. Wpisujemy informacje o anulowaniu
+        sheetSpis.getRange(rowIndex, 6).setValue(cancelMsg);
+        
+        return { success: true, message: "Wpis anulowano pomyślnie (ślad pozostał w bazie)." };
+      }
+    }
+    return { success: false, message: "Nie udało się zlokalizować wpisu w bazie." };
+  } catch (error) {
+    return { success: false, message: "Błąd podczas usuwania: " + error.toString() };
   }
-  
+}
+
+function addTechnician(name) {
+  if (!name || name.trim() === "") return { success: false, message: "Nazwisko nie może być puste!" };
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const techName = name.trim();
-    
     const dataSheet = ss.getSheetByName('Data sheet');
-    if (!dataSheet) {
-      return { success: false, message: "Błąd: Brak zakładki 'Data sheet' w arkuszu." };
-    }
+    if (!dataSheet) return { success: false, message: "Błąd: Brak zakładki 'Data sheet' w arkuszu." };
     
     const lastRow = dataSheet.getLastRow();
     let added = false;
@@ -167,9 +256,7 @@ function addTechnician(name) {
       }
     }
     
-    if (!added) {
-      dataSheet.getRange(Math.max(lastRow + 1, 9), 2).setValue(techName);
-    }
+    if (!added) dataSheet.getRange(Math.max(lastRow + 1, 9), 2).setValue(techName);
 
     return { success: true, message: "Pomyślnie dodano technika: " + techName, newTech: techName };
   } catch (error) {
@@ -195,7 +282,6 @@ function parseDateToYMD(val) {
       if (y.length === 2) y = "20" + y;
       return `${y}-${m}-${d}`;
     }
-    // Jeśli z frontendu przyszło od razu YYYY-MM-DD
     if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
   }
   return null;
@@ -210,9 +296,7 @@ function submitWorkReport(formData) {
       const sheetCandido = ss.getSheetByName('Candido');
       if (sheetCandido) {
         idPrac = sheetCandido.getRange(parseInt(formData.taskRow), 6).getValue();
-        if (!idPrac || idPrac === "") {
-          idPrac = "Wiersz " + formData.taskRow;
-        }
+        if (!idPrac || idPrac === "") idPrac = "Wiersz " + formData.taskRow;
         
         if (formData.progress) {
           sheetCandido.getRange(parseInt(formData.taskRow), 16).setValue(formData.progress + "%");
@@ -221,34 +305,14 @@ function submitWorkReport(formData) {
     }
 
     let sheetSpis = ss.getSheetByName('Spis wykonanych prac');
-    if (!sheetSpis) {
-      sheetSpis = ss.insertSheet('Spis wykonanych prac');
-    }
+    if (!sheetSpis) sheetSpis = ss.insertSheet('Spis wykonanych prac');
     
     if (sheetSpis.getLastRow() === 0) {
-      sheetSpis.appendRow([
-        "Data", 
-        "Godzina rozpoczęcia pracy", 
-        "Godzina zakończenia pracy", 
-        "Pokład", 
-        "Typ prac", 
-        "Nazwa prac", 
-        "ID prac", 
-        "Technik"
-      ]);
+      sheetSpis.appendRow(["Data", "Godzina rozpoczęcia pracy", "Godzina zakończenia pracy", "Pokład", "Typ prac", "Nazwa prac", "ID prac", "Technik"]);
       sheetSpis.getRange(1, 1, 1, 8).setFontWeight("bold");
     }
     
-    sheetSpis.appendRow([
-      formData.workDate,
-      formData.timeStart,
-      formData.timeEnd,
-      formData.deck,
-      formData.area,
-      formData.taskName,
-      idPrac,
-      formData.technician
-    ]);
+    sheetSpis.appendRow([formData.workDate, formData.timeStart, formData.timeEnd, formData.deck, formData.area, formData.taskName, idPrac, formData.technician]);
 
     return { success: true, message: "Pomyślnie zapisano godziny i postęp zadania!" };
   } catch (error) {

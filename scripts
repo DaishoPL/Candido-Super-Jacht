@@ -1,0 +1,362 @@
+<script>
+  let appData = null;
+  let currentTechSchedule = [];
+
+  // 1. INICJALIZACJA
+  window.onload = function() {
+    const today = new Date().toISOString().split('T')[0];
+    if(document.getElementById('workDate')) document.getElementById('workDate').value = today;
+    if(document.getElementById('infoDate')) document.getElementById('infoDate').innerText = new Date().toLocaleDateString('pl-PL');
+    fetchData();
+  };
+
+  function refreshData() {
+    document.getElementById('mainContent').classList.add('hidden');
+    document.getElementById('loadingScreen').classList.remove('hidden');
+    fetchData();
+  }
+
+  function fetchData() {
+    if (typeof google !== 'undefined' && google.script) {
+      google.script.run
+        .withSuccessHandler(onDataLoaded)
+        .withFailureHandler(err => alert("Błąd pobierania: " + err))
+        .getInitialData();
+    }
+  }
+
+  // 2. WYPEŁNIANIE DANYCH PO POBRANIU
+  function onDataLoaded(data) {
+    appData = data;
+    
+    // --- Uzupełnianie KARTY ZADAŃ ---
+    const techSelect = document.getElementById('technician');
+    if(techSelect) {
+      techSelect.innerHTML = '<option value="" disabled selected>Wybierz z listy...</option>';
+      data.technicians.forEach(tech => {
+        let opt = document.createElement('option');
+        opt.value = tech; opt.innerText = tech;
+        techSelect.appendChild(opt);
+      });
+    }
+
+    const deckSelect = document.getElementById('deckSelect');
+    let totalTasks = 0;
+    
+    if(deckSelect) {
+      deckSelect.innerHTML = '<option value="" disabled selected>Najpierw wybierz pokład...</option>';
+      Object.keys(data.tasksTree).sort().forEach(deck => {
+        let opt = document.createElement('option');
+        opt.value = deck; opt.innerText = deck;
+        deckSelect.appendChild(opt);
+        Object.keys(data.tasksTree[deck]).forEach(area => {
+          totalTasks += data.tasksTree[deck][area].length;
+        });
+      });
+    }
+
+    // --- Uzupełnianie DASHBOARDU (Realizacja Projektu) ---
+    if(document.getElementById('infoTechCount')) {
+      document.getElementById('infoTechCount').innerText = data.technicians.length;
+    }
+    if(document.getElementById('infoTaskCount')) {
+      document.getElementById('infoTaskCount').innerText = totalTasks;
+    }
+    if(document.getElementById('infoPendingTasks')) {
+      document.getElementById('infoPendingTasks').innerText = totalTasks; // Placeholder
+    }
+
+    // Odblokowanie ekranu
+    document.getElementById('loadingScreen').classList.add('hidden');
+    document.getElementById('mainContent').classList.remove('hidden');
+  }
+
+  // 3. OBSŁUGA FORMULARZA KARTY ZADAŃ
+  function onTechOrDateChange() {
+    const tech = document.getElementById('technician').value;
+    const date = document.getElementById('workDate').value;
+    const scheduleSection = document.getElementById('scheduleSection');
+    const scheduleList = document.getElementById('scheduleList');
+
+    resetTimeErrors();
+
+    if (tech && date && scheduleSection) {
+      scheduleList.innerHTML = '<li class="text-slate-500 italic"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Sprawdzanie harmonogramu...</li>';
+      scheduleSection.classList.remove('hidden');
+
+      google.script.run
+        .withSuccessHandler(tasks => {
+          currentTechSchedule = tasks;
+          if (tasks.length === 0) {
+            scheduleList.innerHTML = '<li class="text-emerald-600 font-medium"><i class="fa-solid fa-check mr-1"></i> Brak przypisanych prac (czysty grafik).</li>';
+          } else {
+            // Dodano ikonkę kosza z funkcją cancelTask(dbRowIndex)
+            scheduleList.innerHTML = tasks.map(t => 
+              `<li class="flex justify-between items-center group py-1 border-b border-slate-100 last:border-0">
+                 <span><span class="text-candidoRed font-bold mr-2">${t.start} - ${t.end}</span> <span class="text-slate-400">|</span> ${t.deck} <span class="text-slate-400">|</span> ${t.taskName}</span>
+                 <button type="button" onclick="cancelTask(${t.dbRowIndex})" class="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1 px-2" title="Anuluj to zadanie">
+                   <i class="fa-solid fa-trash-can"></i>
+                 </button>
+               </li>`
+            ).join('');
+          }
+          validateTimes();
+        })
+        .getTechnicianTasksForDate(tech, date);
+    } else if(scheduleSection) {
+      scheduleSection.classList.add('hidden');
+      currentTechSchedule = [];
+    }
+  }
+
+  // NOWA FUNKCJA: Anulowanie zadania
+  function cancelTask(rowIndex) {
+    if(confirm("Czy na pewno chcesz anulować to zadanie z dzisiejszego harmonogramu? (Godziny zostaną skasowane, a w bazie zostanie ślad usunięcia)")) {
+      const scheduleList = document.getElementById('scheduleList');
+      scheduleList.innerHTML = '<li class="text-slate-500 italic"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Usuwanie...</li>';
+      
+      google.script.run
+        .withSuccessHandler(res => {
+          if(res.success) {
+            // Odśwież listę po pomyślnym usunięciu
+            onTechOrDateChange();
+          } else {
+            alert("Błąd usuwania: " + res.message);
+            onTechOrDateChange(); // Odśwież mimo błędu
+          }
+        })
+        .cancelWorkReport(rowIndex);
+    }
+  }
+
+  function validateTimes() {
+    const timeStart = document.getElementById('timeStart').value;
+    const timeEnd = document.getElementById('timeEnd').value;
+    
+    resetTimeErrors();
+    if (!timeStart || !timeEnd) return;
+    if (timeStart >= timeEnd) {
+      showTimeError('Godzina zakończenia musi być późniejsza niż rozpoczęcia.');
+      return;
+    }
+
+    let conflictTask = null;
+    for (let task of currentTechSchedule) {
+      if (timeStart < task.end && timeEnd > task.start) {
+        conflictTask = task;
+        break;
+      }
+    }
+    if (conflictTask) {
+      showTimeError(`Zazębia się z: ${conflictTask.start} - ${conflictTask.end} (${conflictTask.deck}).`);
+    }
+  }
+
+  function showTimeError(message) {
+    document.getElementById('timeErrorText').innerHTML = `<i class="fa-solid fa-circle-exclamation mr-1"></i> ${message}`;
+    document.getElementById('timeErrorMsg').classList.remove('hidden');
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.classList.add('opacity-50', 'cursor-not-allowed', 'grayscale');
+  }
+
+  function resetTimeErrors() {
+    const errorMsg = document.getElementById('timeErrorMsg');
+    const submitBtn = document.getElementById('submitBtn');
+    if(errorMsg) errorMsg.classList.add('hidden');
+    if(submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'grayscale');
+    }
+  }
+
+  // 4. KASKADOWE LISTY WYBORU ZADAŃ
+  function onDeckChange() {
+    const deck = document.getElementById('deckSelect').value;
+    const areaSelect = document.getElementById('areaSelect');
+    const taskSelect = document.getElementById('taskSelect');
+    const customAreaInput = document.getElementById('customAreaInput');
+    const customTaskInput = document.getElementById('customTaskInput');
+    
+    areaSelect.innerHTML = '<option value="" disabled selected>Wybierz powierzchnię...</option>';
+    taskSelect.innerHTML = '<option value="" disabled selected>Wybierz zadanie...</option>';
+    taskSelect.disabled = true; taskSelect.classList.add('bg-gray-100', 'opacity-60');
+    document.getElementById('progressSection').classList.add('hidden');
+
+    if(customAreaInput) customAreaInput.classList.add('hidden');
+    if(customTaskInput) customTaskInput.classList.add('hidden');
+
+    if (deck && appData.tasksTree[deck]) {
+      Object.keys(appData.tasksTree[deck]).sort().forEach(area => {
+        let opt = document.createElement('option');
+        opt.value = area; opt.innerText = area;
+        areaSelect.appendChild(opt);
+      });
+      
+      // DODANO: Opcja ręcznego wpisania obszaru
+      let customOpt = document.createElement('option');
+      customOpt.value = "__CUSTOM__";
+      customOpt.innerText = "➕ Inna powierzchnia (wpisz ręcznie)";
+      areaSelect.appendChild(customOpt);
+
+      areaSelect.disabled = false;
+      areaSelect.classList.remove('bg-gray-100', 'opacity-60');
+      areaSelect.classList.add('bg-white');
+    }
+  }
+
+  function onAreaChange() {
+    const deck = document.getElementById('deckSelect').value;
+    const area = document.getElementById('areaSelect').value;
+    const taskSelect = document.getElementById('taskSelect');
+    const customAreaInput = document.getElementById('customAreaInput');
+    const customTaskInput = document.getElementById('customTaskInput');
+    
+    taskSelect.innerHTML = '<option value="" disabled selected>Wybierz zadanie...</option>';
+    document.getElementById('progressSection').classList.add('hidden');
+    if(customTaskInput) customTaskInput.classList.add('hidden');
+
+    if (area === "__CUSTOM__") {
+      // Wybrano ręczne wpisanie obszaru
+      if(customAreaInput) customAreaInput.classList.remove('hidden');
+      
+      taskSelect.disabled = false;
+      taskSelect.classList.remove('bg-gray-100', 'opacity-60');
+      taskSelect.classList.add('bg-white');
+      
+      let customTaskOpt = document.createElement('option');
+      customTaskOpt.value = "__CUSTOM__";
+      customTaskOpt.innerText = "➕ Wpisz zadanie ręcznie";
+      customTaskOpt.selected = true;
+      taskSelect.appendChild(customTaskOpt);
+      
+      onTaskChange(); 
+    } else {
+      if(customAreaInput) customAreaInput.classList.add('hidden');
+
+      if (deck && area && appData.tasksTree[deck][area]) {
+        appData.tasksTree[deck][area].forEach(t => {
+          let opt = document.createElement('option');
+          opt.value = t.taskName; opt.innerText = t.taskName;
+          opt.dataset.row = t.row; 
+          opt.dataset.progress = t.progress;
+          taskSelect.appendChild(opt);
+        });
+        
+        // DODANO: Opcja ręcznego wpisania zadania
+        let customOpt = document.createElement('option');
+        customOpt.value = "__CUSTOM__";
+        customOpt.innerText = "➕ Inne zadanie (wpisz ręcznie)";
+        taskSelect.appendChild(customOpt);
+
+        taskSelect.disabled = false;
+        taskSelect.classList.remove('bg-gray-100', 'opacity-60');
+        taskSelect.classList.add('bg-white');
+      }
+    }
+  }
+
+  function onTaskChange() {
+    const select = document.getElementById('taskSelect');
+    const customTaskInput = document.getElementById('customTaskInput');
+    const opt = select.options[select.selectedIndex];
+    
+    if (select.value === "__CUSTOM__") {
+      // Wybrano ręczne wpisanie zadania
+      if(customTaskInput) customTaskInput.classList.remove('hidden');
+      document.getElementById('taskRowNumber').value = "";
+      document.getElementById('progressRange').value = 0;
+      document.getElementById('progressValue').innerText = '0%';
+      document.getElementById('progressSection').classList.remove('hidden');
+    } else {
+      if(customTaskInput) customTaskInput.classList.add('hidden');
+      document.getElementById('taskRowNumber').value = opt.dataset.row;
+      const prog = opt.dataset.progress || 0;
+      document.getElementById('progressRange').value = prog;
+      document.getElementById('progressValue').innerText = prog + '%';
+      document.getElementById('progressSection').classList.remove('hidden');
+    }
+  }
+
+  // 5. WYSYŁANIE FORMULARZA
+  function submitForm(event) {
+    event.preventDefault();
+    
+    const timeStart = document.getElementById('timeStart').value;
+    const timeEnd = document.getElementById('timeEnd').value;
+
+    if (timeStart >= timeEnd) {
+      showTimeError('Godziny są niepoprawne!'); return;
+    }
+    for (let t of currentTechSchedule) {
+      if (timeStart < t.end && timeEnd > t.start) {
+        alert("Harmonogram uległ zmianie - konflikt godzin!"); return;
+      }
+    }
+
+    // Odczytywanie wartości z palca (jeśli wybrano opcje customowe)
+    let selectedArea = document.getElementById('areaSelect').value;
+    if (selectedArea === "__CUSTOM__") {
+      selectedArea = document.getElementById('customAreaInput').value.trim();
+      if(!selectedArea) { alert("Wpisz nazwę obszaru!"); return; }
+    }
+    
+    let selectedTask = document.getElementById('taskSelect').value;
+    if (selectedTask === "__CUSTOM__") {
+      selectedTask = document.getElementById('customTaskInput').value.trim();
+      if(!selectedTask) { alert("Wpisz nazwę zadania!"); return; }
+    }
+
+    const btn = document.getElementById('submitBtn');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Zapisywanie...';
+    btn.disabled = true;
+
+    const formData = {
+      technician: document.getElementById('technician').value,
+      workDate: document.getElementById('workDate').value,
+      timeStart: timeStart,
+      timeEnd: timeEnd,
+      deck: document.getElementById('deckSelect').value,
+      area: selectedArea, // Podmieniony obszar
+      taskName: selectedTask, // Podmienione zadanie
+      taskRow: document.getElementById('taskRowNumber').value,
+      progress: document.getElementById('progressRange').value
+    };
+
+    google.script.run
+      .withSuccessHandler(res => {
+        if (res.success) {
+          alert(res.message);
+          onTechOrDateChange();
+          document.getElementById('deckSelect').value = "";
+          document.getElementById('timeStart').value = ""; 
+          document.getElementById('timeEnd').value = "";
+          onDeckChange(); 
+        } else {
+          alert("Błąd: " + res.message);
+        }
+        btn.innerHTML = '<span>Zapisz i prześlij</span><i class="fa-solid fa-paper-plane ml-3"></i>';
+        btn.disabled = false;
+      })
+      .submitWorkReport(formData);
+  }
+
+  // Dodawanie nowego pracownika z poziomu zakładek (jeśli przycisk tam jest)
+  function promptAddTechnician() {
+    const name = prompt("Podaj imię i nazwisko nowego pracownika:");
+    if (name && name.trim() !== "") {
+      refreshData();
+      google.script.run
+        .withSuccessHandler(response => {
+          if(response.success) {
+            alert(response.message);
+            fetchData();
+          } else {
+            alert("Błąd: " + response.message);
+            fetchData();
+          }
+        })
+        .addTechnician(name);
+    }
+  }
+</script>

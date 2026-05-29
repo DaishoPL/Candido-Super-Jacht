@@ -1,0 +1,57 @@
+/**
+ * Skrypt oblicza łączną sumę dni dla wszystkich zadań w arkuszu "Candido"
+ * i WYŚWIETLA WYNIK TYLKO W DZIENNIKU (nie modyfikuje arkusza).
+ */
+function obliczDniDlaWszystkichWierszy() {
+  const arkusz = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Candido");
+  
+  if (!arkusz) {
+    Logger.log("Błąd: Nie znaleziono zakładki 'Candido'");
+    return;
+  }
+
+  // Pobieramy ostatni wiersz z danymi, aby skrypt wiedział gdzie przestać
+  const ostatniWiersz = arkusz.getLastRow();
+  
+  // Jeśli mamy mniej niż 3 wiersze, kończymy działanie
+  if (ostatniWiersz < 3) {
+    Logger.log("Zakładka jest pusta (brak danych poniżej 2 wiersza).");
+    return;
+  }
+
+  // Pobieramy zakres od 3. wiersza do końca, kolumny J(10), K, L, M(13)
+  // W ten sposób pobieramy tylko to, co trzeba (szybciej działa)
+  const zakres = arkusz.getRange(3, 10, ostatniWiersz - 2, 4);
+  const dane = zakres.getValues();
+  
+  let sumaWszystkichDni = 0;
+  let liczbaPrzeanalizowanychZadan = 0;
+
+  // Przetwarzamy dane wyłącznie w pamięci skryptu
+  for (let i = 0; i < dane.length; i++) {
+    const dataStart = dane[i][0];  // Kolumna J
+    const dataKoniec = dane[i][3]; // Kolumna M
+
+    // Sprawdzamy, czy w obu komórkach znajdują się poprawne obiekty daty
+    if (dataStart instanceof Date && dataKoniec instanceof Date) {
+      
+      // Obliczamy różnicę czasu
+      const roznicaMs = Math.abs(dataKoniec - dataStart);
+      
+      // Obliczamy dni: dzielimy przez ilość milisekund w dobie. 
+      // Math.ceil zaokrągla w górę, a +1 wlicza zarówno dzień startu jak i końca (zgodnie z logiką Candido).
+      const dni = Math.ceil(roznicaMs / (1000 * 60 * 60 * 24)) + 1;
+      
+      sumaWszystkichDni += dni;
+      liczbaPrzeanalizowanychZadan++;
+    }
+  }
+
+  // Wyświetlamy zebrany wynik w Dzienniku wykonywania
+  Logger.log("--- ZAKOŃCZONO OBLICZENIA ---");
+  Logger.log("Zliczono zadania w wierszach: od 3 do " + ostatniWiersz);
+  Logger.log("Ilość zadań z prawidłowymi datami: " + liczbaPrzeanalizowanychZadan);
+  Logger.log("========================================");
+  Logger.log(">>> ŁĄCZNA SUMA ZAPLANOWANYCH DNI: " + sumaWszystkichDni + " <<<");
+  Logger.log("========================================");
+}

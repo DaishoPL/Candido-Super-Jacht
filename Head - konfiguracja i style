@@ -1,0 +1,39 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seavia - Panel Brygadzisty</title>
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- FontAwesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<!-- Konfiguracja kolorów -->
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          candidoRed: '#e53e3e',
+          seaviaBlue: '#0f2d52',
+          bgLight: '#f8fafc'
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  body { background-color: #f8fafc; }
+  .loader {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #e53e3e;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+</style>

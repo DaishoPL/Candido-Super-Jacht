@@ -1,189 +1,107 @@
-<div class="bg-white rounded-lg shadow-sm p-8 border border-gray-100 animate-fade-in">
-  <h2 class="text-2xl font-bold text-seaviaBlue mb-6 border-b pb-2"><i class="fa-solid fa-chart-pie mr-2 text-candidoRed"></i> Status Realizacji Projektu</h2>
+<form id="workForm" onsubmit="submitForm(event)" class="bg-white rounded-lg shadow-sm border border-gray-100 min-h-[400px]">
   
-  <!-- Górne Statystyki -->
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Wykonanie Projektu</p>
-      <p class="text-3xl font-bold text-candidoRed" id="dashTotalProgress">0%</p>
-      <p class="text-[10px] text-slate-400 mt-1">Średnia ważona z czasu</p>
+  <!-- Sekcja 1: Użytkownik i Czas -->
+  <div class="p-8 border-b border-gray-100">
+    <div class="flex justify-between items-center mb-5">
+      <h3 class="text-lg font-bold text-seaviaBlue"><i class="fa-regular fa-clock mr-2 text-candidoRed"></i> Dane pracownika i godziny</h3>
+      <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Krok 1</span>
     </div>
     
-    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Wypracowane Godziny</p>
-      <p class="text-3xl font-bold text-seaviaBlue" id="dashTotalHours">0h</p>
-      <p class="text-[10px] text-slate-400 mt-1">Cały projekt</p>
-    </div>
-    
-    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Obecni Technicy</p>
-      <p class="text-3xl font-bold text-emerald-600" id="dashActiveTechs">0</p>
-      <p class="text-[10px] text-slate-400 mt-1">Status: Aktywny</p>
-    </div>
-    
-    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Wszyscy Technicy</p>
-      <p class="text-3xl font-bold text-slate-600" id="dashTotalTechs">0</p>
-      <p class="text-[10px] text-slate-400 mt-1">Zapisani w bazie</p>
-    </div>
-  </div>
-
-  <!-- Główny Wykres Projektu -->
-  <div class="mb-10 bg-slate-50 p-6 border border-slate-200 rounded-lg shadow-inner">
-    <h3 class="text-lg font-bold text-seaviaBlue mb-2 text-center">Rozkład Godzin na Pokłady</h3>
-    <div class="relative w-full max-w-md mx-auto" style="height: 300px;">
-      <!-- Tekst w środku pierścienia -->
-      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-2">
-        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Suma Wyświetlana</span>
-        <span id="centerChartHours" class="text-3xl font-bold text-seaviaBlue">0h</span>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Wybierz pracownika</label>
+        <select id="technician" required onchange="onTechOrDateChange()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed focus:border-candidoRed bg-slate-50 font-medium text-slate-700">
+          <option value="" disabled selected>Wybierz z listy...</option>
+        </select>
       </div>
-      <canvas id="mainProjectChart"></canvas>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Data prac</label>
+        <input type="date" id="workDate" required onchange="onTechOrDateChange()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-slate-50 font-medium text-slate-700">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Rozpoczęcie (Start)</label>
+        <input type="time" id="timeStart" required onchange="validateTimes()" oninput="validateTimes()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-slate-50 font-medium text-slate-700">
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Zakończenie (Koniec)</label>
+        <input type="time" id="timeEnd" required onchange="validateTimes()" oninput="validateTimes()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-slate-50 font-medium text-slate-700">
+      </div>
+
+      <!-- Moduł Walidacji i Harmonogramu -->
+      <div id="timeErrorMsg" class="col-span-1 md:col-span-2 hidden">
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm font-medium">
+          <span id="timeErrorText"><i class="fa-solid fa-circle-exclamation mr-1"></i> Błąd: ...</span>
+        </div>
+      </div>
+
+      <div id="scheduleSection" class="col-span-1 md:col-span-2 hidden mt-1">
+         <div class="p-4 bg-slate-50 border border-slate-200 rounded-md">
+           <h4 class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2"><i class="fa-solid fa-list-check mr-1"></i> Dzisiejszy harmonogram pracownika:</h4>
+           <ul id="scheduleList" class="text-sm text-slate-700 space-y-1 font-medium">
+              <!-- Wypełniane dynamicznie przez skrypt -->
+           </ul>
+         </div>
+      </div>
     </div>
-    <p class="text-[10px] text-center text-slate-400 mt-2"><i class="fa-solid fa-hand-pointer mr-1"></i> Kliknij w elementy legendy, aby odfiltrować pokłady. Godziny przeliczą się automatycznie.</p>
   </div>
-</div>
 
-<!-- ========================================================= -->
-<!-- SKRYPTY TYLKO DLA TEGO KOMPONENTU (Izolacja logiki)       -->
-<!-- ========================================================= -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-  let mainChartInstance = null;
-  let lastDataChecksum = "";
-
-  // Automatyczny obserwator, który czeka aż główny plik (Scripts.html) pobierze `appData`
-  function watchForData() {
-    if (typeof appData !== 'undefined' && appData && appData.tasksTree) {
-      // Prosty sposób na sprawdzenie, czy dane się zmieniły (np. po kliknięciu "Odśwież")
-      let currentChecksum = JSON.stringify(appData.techStats) + appData.totalWorkedHours;
-      if (currentChecksum !== lastDataChecksum) {
-        initDashboard(appData);
-        lastDataChecksum = currentChecksum;
-      }
-    }
-    // Sprawdzaj co 1 sekundę
-    setTimeout(watchForData, 1000);
-  }
-
-  // Uruchomienie obserwatora
-  watchForData();
-
-  // Główna logika obliczeniowa Dashboardu
-  function initDashboard(data) {
-    // 1. Zasilenie górnych liczników z techników
-    if (data.techStats) {
-      document.getElementById('dashTotalTechs').innerText = data.techStats.total;
-      document.getElementById('dashActiveTechs').innerText = data.techStats.active;
-    }
+  <!-- Sekcja 2: Zadanie -->
+  <div class="p-8 border-b border-gray-100 bg-slate-50">
+    <div class="flex justify-between items-center mb-5">
+      <h3 class="text-lg font-bold text-seaviaBlue"><i class="fa-solid fa-hammer mr-2 text-candidoRed"></i> Przydział zadania z harmonogramu</h3>
+      <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Krok 2</span>
+    </div>
     
-    // 2. Całkowite godziny z backendu
-    document.getElementById('dashTotalHours').innerText = Math.round(data.totalWorkedHours || 0) + 'h';
+    <div class="space-y-5">
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">1. Wybierz Pokład (Deck)</label>
+        <select id="deckSelect" required onchange="onDeckChange()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-white font-medium text-slate-700 shadow-sm">
+          <option value="" disabled selected>Najpierw wybierz pokład...</option>
+        </select>
+      </div>
 
-    // 3. Zaawansowana matematyka: Średnia ważona czasu
-    let totalProjectPlannedDays = 0;
-    let weightedProgressSum = 0;
-    let hoursByDeck = {};
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">2. Powierzchnia / Obszar</label>
+        <select id="areaSelect" required onchange="onAreaChange()" disabled class="w-full rounded-md border border-slate-200 p-2.5 bg-gray-100 opacity-60 font-medium">
+          <option value="" disabled selected>Wybierz powierzchnię...</option>
+        </select>
+        <!-- NOWE: Pole do ręcznego wpisywania obszaru -->
+        <input type="text" id="customAreaInput" placeholder="Wpisz nazwę obszaru..." class="w-full rounded-md border border-slate-300 p-2.5 mt-2 hidden focus:ring-2 focus:ring-candidoRed bg-white font-medium text-slate-700 shadow-sm">
+      </div>
 
-    Object.keys(data.tasksTree).forEach(deck => {
-      let deckHours = 0;
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">3. Wykonane Zadanie</label>
+        <select id="taskSelect" required onchange="onTaskChange()" disabled class="w-full rounded-md border border-slate-200 p-2.5 bg-gray-100 opacity-60 font-medium">
+          <option value="" disabled selected>Wybierz zadanie...</option>
+        </select>
+        <!-- NOWE: Pole do ręcznego wpisywania zadania -->
+        <input type="text" id="customTaskInput" placeholder="Wpisz realizowane zadanie..." class="w-full rounded-md border border-slate-300 p-2.5 mt-2 hidden focus:ring-2 focus:ring-candidoRed bg-white font-medium text-slate-700 shadow-sm">
+        <input type="hidden" id="taskRowNumber">
+      </div>
+    </div>
+  </div>
 
-      Object.keys(data.tasksTree[deck]).forEach(area => {
-        data.tasksTree[deck][area].forEach(task => {
-          
-          let weight = task.plannedDays || 1; // Waga czasowa zadania
-          let progress = task.progress || 0;
-          let hours = task.workedHours || 0;
-          
-          totalProjectPlannedDays += weight;
-          weightedProgressSum += (progress * weight);
-          deckHours += hours;
-        });
-      });
+  <!-- Sekcja 3: Postęp i Zapis -->
+  <div id="progressSection" class="p-8 hidden transition-all duration-300">
+    <div class="mb-6">
+      <h3 class="text-sm font-bold text-seaviaBlue uppercase tracking-wider mb-2">Poziom wykonania zadania (%)</h3>
+      <p class="text-xs text-slate-500 mb-4">Wartość zostanie zaaktualizowana w głównej tabeli projektu.</p>
+      
+      <div class="flex items-center gap-4 bg-white p-4 rounded-md border border-slate-200 shadow-sm">
+        <input type="range" id="progressRange" min="0" max="100" step="5" value="0" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-candidoRed" oninput="document.getElementById('progressValue').innerText = this.value + '%'">
+        <span id="progressValue" class="text-xl font-bold text-candidoRed min-w-[3rem] text-right">0%</span>
+      </div>
+    </div>
+  </div>
 
-      if(deckHours > 0) {
-        hoursByDeck[deck] = deckHours;
-      }
-    });
-
-    // Wyliczenie % całości na bazie wagi czasowej
-    let finalProjectProgress = 0;
-    if (totalProjectPlannedDays > 0) {
-      finalProjectProgress = Math.round(weightedProgressSum / totalProjectPlannedDays);
-    }
-    document.getElementById('dashTotalProgress').innerText = finalProjectProgress + '%';
-
-    // 4. Rysowanie Głównego Wykresu Pierścieniowego
-    drawMainChart(hoursByDeck);
-  }
-
-  function drawMainChart(hoursByDeck) {
-    const ctx = document.getElementById('mainProjectChart');
-    if (!ctx) return;
-
-    if (mainChartInstance) {
-      mainChartInstance.destroy();
-    }
-
-    const labels = Object.keys(hoursByDeck);
-    const dataValues = Object.values(hoursByDeck).map(v => Math.round(v));
-    
-    // Brak danych do narysowania
-    if(labels.length === 0) {
-      document.getElementById('centerChartHours').innerText = '0h';
-      return;
-    }
-    
-    const bgColors = ['#0f2d52', '#e53e3e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b', '#0ea5e9'];
-
-    mainChartInstance = new Chart(ctx, {
-      type: 'doughnut',
-      data: {
-        labels: labels,
-        datasets: [{
-          data: dataValues,
-          backgroundColor: bgColors.slice(0, labels.length),
-          borderWidth: 2,
-          borderColor: '#ffffff'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: '70%', 
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: { padding: 20, font: { family: 'Inter', size: 12 } },
-            onClick: function(e, legendItem, legend) {
-              Chart.defaults.plugins.legend.onClick.call(this, e, legendItem, legend);
-              updateCenterHours(legend.chart);
-            }
-          },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                return ' ' + context.label + ': ' + context.raw + 'h';
-              }
-            }
-          }
-        },
-        animation: {
-          onComplete: function(animation) {
-             updateCenterHours(animation.chart);
-          }
-        }
-      }
-    });
-  }
-
-  function updateCenterHours(chart) {
-    let total = 0;
-    chart.data.datasets[0].data.forEach((val, index) => {
-      // Sprawdza, czy element jest widoczny i sumuje do środka
-      if (chart.getDataVisibility(index)) {
-        total += val;
-      }
-    });
-    document.getElementById('centerChartHours').innerText = total + 'h';
-  }
-</script>
+  <div class="p-6 bg-slate-100 rounded-b-lg flex justify-end">
+     <button type="submit" id="submitBtn" class="bg-candidoRed hover:bg-red-700 text-white font-bold py-3 px-8 rounded-md shadow-md transition-all flex items-center">
+      <span>Zapisz i prześlij</span>
+      <i class="fa-solid fa-paper-plane ml-3"></i>
+    </button>
+  </div>
+  
+</form>

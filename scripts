@@ -20,30 +20,36 @@
     if (typeof google !== 'undefined' && google.script) {
       google.script.run
         .withSuccessHandler(onDataLoaded)
-        .withFailureHandler(err => alert("Błąd pobierania: " + err))
+        .withFailureHandler(err => {
+            console.error("Błąd pobierania:", err);
+            alert("Błąd pobierania danych z serwera: " + err);
+        })
         .getInitialData();
     }
   }
 
   // 2. WYPEŁNIANIE DANYCH PO POBRANIU
   function onDataLoaded(data) {
+    console.log("Dane pobrane z serwera:", data);
     appData = data;
     
     // --- Uzupełnianie KARTY ZADAŃ ---
     const techSelect = document.getElementById('technician');
     if(techSelect) {
       techSelect.innerHTML = '<option value="" disabled selected>Wybierz z listy...</option>';
-      data.technicians.forEach(tech => {
-        let opt = document.createElement('option');
-        opt.value = tech; opt.innerText = tech;
-        techSelect.appendChild(opt);
-      });
+      if (data.technicians) {
+        data.technicians.forEach(tech => {
+          let opt = document.createElement('option');
+          opt.value = tech; opt.innerText = tech;
+          techSelect.appendChild(opt);
+        });
+      }
     }
 
     const deckSelect = document.getElementById('deckSelect');
     let totalTasks = 0;
     
-    if(deckSelect) {
+    if(deckSelect && data.tasksTree) {
       deckSelect.innerHTML = '<option value="" disabled selected>Najpierw wybierz pokład...</option>';
       Object.keys(data.tasksTree).sort().forEach(deck => {
         let opt = document.createElement('option');
@@ -55,20 +61,23 @@
       });
     }
 
-    // --- Uzupełnianie DASHBOARDU (Realizacja Projektu) ---
-    if(document.getElementById('infoTechCount')) {
-      document.getElementById('infoTechCount').innerText = data.technicians.length;
+    // ODBLOKOWANIE EKRANU
+    const loadingScreen = document.getElementById('loadingScreen');
+    const mainContent = document.getElementById('mainContent');
+    if (loadingScreen) loadingScreen.classList.add('hidden');
+    if (mainContent) mainContent.classList.remove('hidden');
+    
+    // ========================================================
+    // TO JEST KLUCZOWY MOMENT - WYZWALAMY SKRYPT REALIZACJI!
+    // ========================================================
+    if (typeof initDashboard === 'function') {
+      console.log("Wywyołuję initDashboard...");
+      initDashboard(data);
+    } else {
+      console.error("BŁĄD: Nie znaleziono funkcji initDashboard! Czy w pliku Index ładujesz Scripts_Realizacja?");
+      // Awaryjne usunięcie kropek, jeśli skrypt nie został podpięty
+      if(document.getElementById('dashTotalProgress')) document.getElementById('dashTotalProgress').innerText = "Brak Skryptu";
     }
-    if(document.getElementById('infoTaskCount')) {
-      document.getElementById('infoTaskCount').innerText = totalTasks;
-    }
-    if(document.getElementById('infoPendingTasks')) {
-      document.getElementById('infoPendingTasks').innerText = totalTasks; // Placeholder
-    }
-
-    // Odblokowanie ekranu
-    document.getElementById('loadingScreen').classList.add('hidden');
-    document.getElementById('mainContent').classList.remove('hidden');
   }
 
   // 3. OBSŁUGA FORMULARZA KARTY ZADAŃ
@@ -87,10 +96,9 @@
       google.script.run
         .withSuccessHandler(tasks => {
           currentTechSchedule = tasks;
-          if (tasks.length === 0) {
+          if (!tasks || tasks.length === 0) {
             scheduleList.innerHTML = '<li class="text-emerald-600 font-medium"><i class="fa-solid fa-check mr-1"></i> Brak przypisanych prac (czysty grafik).</li>';
           } else {
-            // Dodano ikonkę kosza z funkcją cancelTask(dbRowIndex)
             scheduleList.innerHTML = tasks.map(t => 
               `<li class="flex justify-between items-center group py-1 border-b border-slate-100 last:border-0">
                  <span><span class="text-candidoRed font-bold mr-2">${t.start} - ${t.end}</span> <span class="text-slate-400">|</span> ${t.deck} <span class="text-slate-400">|</span> ${t.taskName}</span>
@@ -109,7 +117,6 @@
     }
   }
 
-  // NOWA FUNKCJA: Anulowanie zadania
   function cancelTask(rowIndex) {
     if(confirm("Czy na pewno chcesz anulować to zadanie z dzisiejszego harmonogramu? (Godziny zostaną skasowane, a w bazie zostanie ślad usunięcia)")) {
       const scheduleList = document.getElementById('scheduleList');
@@ -117,12 +124,11 @@
       
       google.script.run
         .withSuccessHandler(res => {
-          if(res.success) {
-            // Odśwież listę po pomyślnym usunięciu
+          if(res && res.success) {
             onTechOrDateChange();
           } else {
-            alert("Błąd usuwania: " + res.message);
-            onTechOrDateChange(); // Odśwież mimo błędu
+            alert("Błąd usuwania: " + (res ? res.message : 'Brak odpowiedzi'));
+            onTechOrDateChange();
           }
         })
         .cancelWorkReport(rowIndex);
@@ -141,11 +147,13 @@
     }
 
     let conflictTask = null;
-    for (let task of currentTechSchedule) {
-      if (timeStart < task.end && timeEnd > task.start) {
-        conflictTask = task;
-        break;
-      }
+    if (currentTechSchedule && currentTechSchedule.length > 0) {
+        for (let task of currentTechSchedule) {
+          if (timeStart < task.end && timeEnd > task.start) {
+            conflictTask = task;
+            break;
+          }
+        }
     }
     if (conflictTask) {
       showTimeError(`Zazębia się z: ${conflictTask.start} - ${conflictTask.end} (${conflictTask.deck}).`);
@@ -153,11 +161,16 @@
   }
 
   function showTimeError(message) {
-    document.getElementById('timeErrorText').innerHTML = `<i class="fa-solid fa-circle-exclamation mr-1"></i> ${message}`;
-    document.getElementById('timeErrorMsg').classList.remove('hidden');
+    const errorText = document.getElementById('timeErrorText');
+    const errorMsg = document.getElementById('timeErrorMsg');
     const submitBtn = document.getElementById('submitBtn');
-    submitBtn.disabled = true;
-    submitBtn.classList.add('opacity-50', 'cursor-not-allowed', 'grayscale');
+    
+    if (errorText) errorText.innerHTML = `<i class="fa-solid fa-circle-exclamation mr-1"></i> ${message}`;
+    if (errorMsg) errorMsg.classList.remove('hidden');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-50', 'cursor-not-allowed', 'grayscale');
+    }
   }
 
   function resetTimeErrors() {
@@ -181,19 +194,20 @@
     areaSelect.innerHTML = '<option value="" disabled selected>Wybierz powierzchnię...</option>';
     taskSelect.innerHTML = '<option value="" disabled selected>Wybierz zadanie...</option>';
     taskSelect.disabled = true; taskSelect.classList.add('bg-gray-100', 'opacity-60');
-    document.getElementById('progressSection').classList.add('hidden');
+    
+    const progressSection = document.getElementById('progressSection');
+    if (progressSection) progressSection.classList.add('hidden');
 
     if(customAreaInput) customAreaInput.classList.add('hidden');
     if(customTaskInput) customTaskInput.classList.add('hidden');
 
-    if (deck && appData.tasksTree[deck]) {
+    if (deck && appData && appData.tasksTree && appData.tasksTree[deck]) {
       Object.keys(appData.tasksTree[deck]).sort().forEach(area => {
         let opt = document.createElement('option');
         opt.value = area; opt.innerText = area;
         areaSelect.appendChild(opt);
       });
       
-      // DODANO: Opcja ręcznego wpisania obszaru
       let customOpt = document.createElement('option');
       customOpt.value = "__CUSTOM__";
       customOpt.innerText = "➕ Inna powierzchnia (wpisz ręcznie)";
@@ -213,11 +227,12 @@
     const customTaskInput = document.getElementById('customTaskInput');
     
     taskSelect.innerHTML = '<option value="" disabled selected>Wybierz zadanie...</option>';
-    document.getElementById('progressSection').classList.add('hidden');
+    const progressSection = document.getElementById('progressSection');
+    if (progressSection) progressSection.classList.add('hidden');
+    
     if(customTaskInput) customTaskInput.classList.add('hidden');
 
     if (area === "__CUSTOM__") {
-      // Wybrano ręczne wpisanie obszaru
       if(customAreaInput) customAreaInput.classList.remove('hidden');
       
       taskSelect.disabled = false;
@@ -234,7 +249,7 @@
     } else {
       if(customAreaInput) customAreaInput.classList.add('hidden');
 
-      if (deck && area && appData.tasksTree[deck][area]) {
+      if (deck && area && appData && appData.tasksTree && appData.tasksTree[deck] && appData.tasksTree[deck][area]) {
         appData.tasksTree[deck][area].forEach(t => {
           let opt = document.createElement('option');
           opt.value = t.taskName; opt.innerText = t.taskName;
@@ -243,7 +258,6 @@
           taskSelect.appendChild(opt);
         });
         
-        // DODANO: Opcja ręcznego wpisania zadania
         let customOpt = document.createElement('option');
         customOpt.value = "__CUSTOM__";
         customOpt.innerText = "➕ Inne zadanie (wpisz ręcznie)";
@@ -262,7 +276,6 @@
     const opt = select.options[select.selectedIndex];
     
     if (select.value === "__CUSTOM__") {
-      // Wybrano ręczne wpisanie zadania
       if(customTaskInput) customTaskInput.classList.remove('hidden');
       document.getElementById('taskRowNumber').value = "";
       document.getElementById('progressRange').value = 0;
@@ -288,13 +301,15 @@
     if (timeStart >= timeEnd) {
       showTimeError('Godziny są niepoprawne!'); return;
     }
-    for (let t of currentTechSchedule) {
-      if (timeStart < t.end && timeEnd > t.start) {
-        alert("Harmonogram uległ zmianie - konflikt godzin!"); return;
-      }
+    
+    if (currentTechSchedule && currentTechSchedule.length > 0) {
+        for (let t of currentTechSchedule) {
+          if (timeStart < t.end && timeEnd > t.start) {
+            alert("Harmonogram uległ zmianie - konflikt godzin!"); return;
+          }
+        }
     }
 
-    // Odczytywanie wartości z palca (jeśli wybrano opcje customowe)
     let selectedArea = document.getElementById('areaSelect').value;
     if (selectedArea === "__CUSTOM__") {
       selectedArea = document.getElementById('customAreaInput').value.trim();
@@ -317,15 +332,15 @@
       timeStart: timeStart,
       timeEnd: timeEnd,
       deck: document.getElementById('deckSelect').value,
-      area: selectedArea, // Podmieniony obszar
-      taskName: selectedTask, // Podmienione zadanie
+      area: selectedArea,
+      taskName: selectedTask,
       taskRow: document.getElementById('taskRowNumber').value,
       progress: document.getElementById('progressRange').value
     };
 
     google.script.run
       .withSuccessHandler(res => {
-        if (res.success) {
+        if (res && res.success) {
           alert(res.message);
           onTechOrDateChange();
           document.getElementById('deckSelect').value = "";
@@ -333,30 +348,11 @@
           document.getElementById('timeEnd').value = "";
           onDeckChange(); 
         } else {
-          alert("Błąd: " + res.message);
+          alert("Błąd: " + (res ? res.message : "Brak odpowiedzi serwera"));
         }
         btn.innerHTML = '<span>Zapisz i prześlij</span><i class="fa-solid fa-paper-plane ml-3"></i>';
         btn.disabled = false;
       })
       .submitWorkReport(formData);
-  }
-
-  // Dodawanie nowego pracownika z poziomu zakładek (jeśli przycisk tam jest)
-  function promptAddTechnician() {
-    const name = prompt("Podaj imię i nazwisko nowego pracownika:");
-    if (name && name.trim() !== "") {
-      refreshData();
-      google.script.run
-        .withSuccessHandler(response => {
-          if(response.success) {
-            alert(response.message);
-            fetchData();
-          } else {
-            alert("Błąd: " + response.message);
-            fetchData();
-          }
-        })
-        .addTechnician(name);
-    }
   }
 </script>

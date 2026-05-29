@@ -1,26 +1,37 @@
-<div class="bg-white rounded-lg shadow-sm p-8 border border-gray-100">
+<div class="bg-white rounded-lg shadow-sm p-8 border border-gray-100 animate-fade-in">
   <h2 class="text-2xl font-bold text-seaviaBlue mb-6 border-b pb-2">Status Realizacji Projektu</h2>
   
   <!-- Główne statystyki -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm">
+    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm relative overflow-hidden">
       <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Całkowity Postęp</p>
-      <p class="text-2xl font-bold text-candidoRed" id="dashTotalProgress">0%</p>
+      <p class="text-2xl font-bold text-candidoRed" id="dashTotalProgress">
+        <i class="fa-solid fa-ellipsis fa-fade text-slate-300"></i>
+      </p>
       <p class="text-xs text-slate-400 mt-1">Średnia ważona czasem</p>
     </div>
+    
     <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm">
       <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Wypracowane Godziny</p>
-      <p class="text-2xl font-bold text-slate-800" id="dashTotalHours">0h</p>
+      <p class="text-2xl font-bold text-slate-800" id="dashTotalHours">
+        <i class="fa-solid fa-ellipsis fa-fade text-slate-300"></i>
+      </p>
       <p class="text-xs text-slate-400 mt-1">Zatwierdzone w bazie</p>
     </div>
+    
     <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm">
       <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Aktywni Technicy</p>
-      <p class="text-2xl font-bold text-emerald-600" id="dashActiveTechs">0</p>
+      <p class="text-2xl font-bold text-emerald-600" id="dashActiveTechs">
+        <i class="fa-solid fa-ellipsis fa-fade text-slate-300"></i>
+      </p>
       <p class="text-xs text-slate-400 mt-1">Obecni na projekcie</p>
     </div>
+    
     <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm">
       <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Wszyscy Technicy</p>
-      <p class="text-2xl font-bold text-slate-600" id="dashTotalTechs">0</p>
+      <p class="text-2xl font-bold text-slate-600" id="dashTotalTechs">
+        <i class="fa-solid fa-ellipsis fa-fade text-slate-300"></i>
+      </p>
       <p class="text-xs text-slate-400 mt-1">Biorący udział od początku</p>
     </div>
   </div>
@@ -28,20 +39,26 @@
   <!-- Główny Wykres Projektu -->
   <div class="mb-10 bg-white p-6 border border-slate-100 rounded-lg shadow-sm">
     <h3 class="text-lg font-bold text-seaviaBlue mb-4 text-center">Postęp Główny (Z podziałem na Pokłady)</h3>
+    
     <div class="relative w-full max-w-md mx-auto h-64">
       <!-- Środek pierścienia -->
       <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-4">
         <span class="text-xs text-slate-500 font-bold uppercase tracking-widest">Godziny</span>
-        <span id="centerChartHours" class="text-3xl font-bold text-seaviaBlue">0</span>
+        <span id="centerChartHours" class="text-3xl font-bold text-seaviaBlue">
+          <i class="fa-solid fa-ellipsis fa-fade text-slate-300 text-lg"></i>
+        </span>
       </div>
       <canvas id="mainProjectChart"></canvas>
     </div>
-    <p class="text-xs text-center text-slate-400 mt-4"><i class="fa-solid fa-circle-info mr-1"></i> Kliknij legendę, aby ukryć pokład. Godziny w środku przeliczą się automatycznie.</p>
+    
+    <p class="text-xs text-center text-slate-400 mt-4">
+      <i class="fa-solid fa-circle-info mr-1"></i> Kliknij legendę, aby ukryć pokład. Godziny w środku przeliczą się automatycznie.
+    </p>
   </div>
 
   <!-- Sekcja na wykresy poszczególnych pokładów -->
   <h3 class="text-lg font-bold text-seaviaBlue mb-4 border-b pb-2">Postępy na poszczególnych pokładach</h3>
   <div id="deckChartsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-    <!-- Wykresy będą generowane dynamicznie przez JS -->
+    <p class="text-sm text-slate-400 italic col-span-full" id="deckChartsPlaceholder">Trwa ładowanie szczegółowych danych...</p>
   </div>
 </div>

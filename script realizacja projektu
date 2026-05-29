@@ -6,60 +6,92 @@
 
   // Ta funkcja będzie wywołana z głównego Scripts.html po pobraniu danych
   function initDashboard(data) {
-    if (!data || !data.tasksTree) return;
+    console.log("=== INIT DASHBOARD WYZWOLONY ===", data);
 
-    // 1. Zasilenie górnych liczników z techników
-    if (data.techStats) {
-      document.getElementById('dashTotalTechs').innerText = data.techStats.total;
-      document.getElementById('dashActiveTechs').innerText = data.techStats.active;
+    // Zabezpieczenie: Jeśli brakuje głównego obiektu danych
+    if (!data) {
+      console.error("BŁĄD KRYTYCZNY: Z backendu przyszło 'null'.");
+      if(document.getElementById('dashTotalProgress')) document.getElementById('dashTotalProgress').innerText = "BŁĄD";
+      if(document.getElementById('dashTotalHours')) document.getElementById('dashTotalHours').innerText = "Brak połączenia";
+      return;
     }
-    
-    // 2. Całkowite godziny z backendu
-    document.getElementById('dashTotalHours').innerText = Math.round(data.totalWorkedHours || 0) + 'h';
 
-    // 3. Zaawansowana matematyka: Średnia ważona czasu
-    let totalProjectPlannedDays = 0;
-    let weightedProgressSum = 0;
-    
-    // Obiekty do zebrania danych na wykres główny
-    let hoursByDeck = {};
+    if (!data.tasksTree) {
+      console.warn("UWAGA: Brak tasksTree w otrzymanych danych.");
+      return;
+    }
 
-    Object.keys(data.tasksTree).forEach(deck => {
-      let deckHours = 0;
+    try {
+      // 1. Zasilenie górnych liczników z techników (bezpieczne przypisanie)
+      if (data.techStats) {
+        const elTotalTechs = document.getElementById('dashTotalTechs');
+        const elActiveTechs = document.getElementById('dashActiveTechs');
+        if (elTotalTechs) elTotalTechs.innerText = data.techStats.total || 0;
+        if (elActiveTechs) elActiveTechs.innerText = data.techStats.active || 0;
+      }
+      
+      // 2. Całkowite godziny z backendu
+      const elTotalHours = document.getElementById('dashTotalHours');
+      if (elTotalHours) {
+        elTotalHours.innerText = Math.round(data.totalWorkedHours || 0) + 'h';
+      }
 
-      Object.keys(data.tasksTree[deck]).forEach(area => {
-        data.tasksTree[deck][area].forEach(task => {
-          
-          let weight = task.plannedDays || 1; // Waga = planowane dni
-          let progress = task.progress || 0;
-          let hours = task.workedHours || 0;
-          
-          // Do całkowitego postępu
-          totalProjectPlannedDays += weight;
-          weightedProgressSum += (progress * weight);
+      // 3. Zaawansowana matematyka: Średnia ważona czasu
+      let totalProjectPlannedDays = 0;
+      let weightedProgressSum = 0;
+      let hoursByDeck = {};
 
-          // Do wykresu głównego (Suma godzin na pokład)
-          deckHours += hours;
+      Object.keys(data.tasksTree).forEach(deck => {
+        let deckHours = 0;
+
+        Object.keys(data.tasksTree[deck]).forEach(area => {
+          data.tasksTree[deck][area].forEach(task => {
+            
+            // Wymuszamy liczby zmiennoprzecinkowe, by uniknąć błędów
+            let weight = parseFloat(task.plannedDays) || 1; 
+            let progress = parseFloat(task.progress) || 0;
+            let hours = parseFloat(task.workedHours) || 0;
+            
+            // Do całkowitego postępu
+            totalProjectPlannedDays += weight;
+            weightedProgressSum += (progress * weight);
+
+            // Do wykresu głównego (Suma godzin na pokład)
+            deckHours += hours;
+          });
         });
+
+        if (deckHours > 0) hoursByDeck[deck] = deckHours;
       });
 
-      if(deckHours > 0) hoursByDeck[deck] = deckHours;
-    });
+      // Wyliczenie % całości na bazie wagi czasowej
+      let finalProjectProgress = 0;
+      if (totalProjectPlannedDays > 0) {
+        finalProjectProgress = Math.round(weightedProgressSum / totalProjectPlannedDays);
+      }
+      
+      const elTotalProgress = document.getElementById('dashTotalProgress');
+      if (elTotalProgress) {
+        elTotalProgress.innerText = finalProjectProgress + '%';
+      }
 
-    // Wyliczenie % całości na bazie wagi czasowej
-    let finalProjectProgress = 0;
-    if (totalProjectPlannedDays > 0) {
-      finalProjectProgress = Math.round(weightedProgressSum / totalProjectPlannedDays);
+      // 4. Rysowanie Głównego Wykresu Pierścieniowego
+      drawMainChart(hoursByDeck);
+
+    } catch (error) {
+      console.error("Błąd podczas renderowania pulpitu:", error);
+      if(document.getElementById('dashTotalProgress')) {
+         document.getElementById('dashTotalProgress').innerText = "BŁĄD JS";
+      }
     }
-    document.getElementById('dashTotalProgress').innerText = finalProjectProgress + '%';
-
-    // 4. Rysowanie Głównego Wykresu Pierścieniowego
-    drawMainChart(hoursByDeck);
   }
 
   function drawMainChart(hoursByDeck) {
     const ctx = document.getElementById('mainProjectChart');
-    if (!ctx) return;
+    if (!ctx) {
+      console.warn("Brak elementu canvas o id 'mainProjectChart'");
+      return;
+    }
 
     if (mainChartInstance) {
       mainChartInstance.destroy();
@@ -68,6 +100,13 @@
     const labels = Object.keys(hoursByDeck);
     const dataValues = Object.values(hoursByDeck).map(v => Math.round(v));
     
+    // Jeśli nie ma żadnych godzin, nie rysujemy pustego "niewidzialnego" wykresu
+    if (labels.length === 0) {
+      console.log("Brak godzin do narysowania na wykresie.");
+      document.getElementById('centerChartHours').innerText = '0h';
+      return;
+    }
+
     // Ładne palety kolorów dla pokładów
     const bgColors = ['#0f2d52', '#e53e3e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#64748b'];
 
@@ -85,15 +124,13 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '70%', // Grubość pierścienia (zostawia miejsce w środku)
+        cutout: '70%',
         plugins: {
           legend: {
             position: 'bottom',
             labels: { padding: 20, font: { family: 'Inter', size: 12 } },
             onClick: function(e, legendItem, legend) {
-              // Domyślna akcja Chart.js (ukrywanie)
               Chart.defaults.plugins.legend.onClick.call(this, e, legendItem, legend);
-              // Po ukryciu przelicz sumę widocznych godzin
               updateCenterHours(legend.chart);
             }
           },
@@ -107,7 +144,6 @@
         },
         animation: {
           onComplete: function(animation) {
-             // Inicjalne wpisanie godzin do środka po załadowaniu
              updateCenterHours(animation.chart);
           }
         }
@@ -115,15 +151,16 @@
     });
   }
 
-  // Funkcja aktualizująca tekst w środku wykresu w oparciu o to co nie jest wykluczone w legendzie
   function updateCenterHours(chart) {
     let total = 0;
-    chart.data.datasets[0].data.forEach((val, index) => {
-      // Jeśli dany element legendy nie jest ukryty
-      if (chart.getDataVisibility(index)) {
-        total += val;
-      }
-    });
-    document.getElementById('centerChartHours').innerText = total + 'h';
+    if (chart && chart.data && chart.data.datasets && chart.data.datasets[0]) {
+      chart.data.datasets[0].data.forEach((val, index) => {
+        if (chart.getDataVisibility(index)) {
+          total += val;
+        }
+      });
+    }
+    const centerEl = document.getElementById('centerChartHours');
+    if (centerEl) centerEl.innerText = total + 'h';
   }
 </script>

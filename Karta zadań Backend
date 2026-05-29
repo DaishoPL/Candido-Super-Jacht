@@ -167,9 +167,13 @@ function parseWorkTimeBackend(val) {
  * Pobiera zaplanowane zadania dla konkretnego technika i daty
  */
 function getTechnicianTasksForDate(techName, dateStr) {
+  let tasks = [];
+  
+  // ZABEZPIECZENIE: Jeśli z front-endu nie przyszedł technik lub data, od razu zwracamy pustą listę
+  if (!techName || !dateStr) return tasks;
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
-  let tasks = [];
 
   if (!sheetSpis) return tasks;
 
@@ -179,18 +183,23 @@ function getTechnicianTasksForDate(techName, dateStr) {
   const data = sheetSpis.getRange(2, 1, lastRow - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, lastRow - 1, 1).getValues();
 
+  // Bezpieczne formatowanie nazwy technika, którego szukamy
+  const searchTech = String(techName).trim().toLowerCase();
+
   for (let i = 0; i < data.length; i++) {
     let rowDate = parseDateToYMD(rawDates[i][0]);
     let rowStart = data[i][1];
     let rowEnd = data[i][2];
     let rowDeck = data[i][3];
     let rowTask = data[i][5];
-    let rowTech = String(data[i][7]).trim().toLowerCase();
+    
+    // Bezpieczne formatowanie komórki - jeśli jest pusta, używamy "", unikając błędu 'trim'
+    let rowTech = String(data[i][7] || "").trim().toLowerCase();
 
     // POMIJAJ ZADANIA BEZ GODZIN (M.in. te, które zostały anulowane)
     if (!rowStart || !rowEnd) continue;
 
-    if (rowTech === techName.trim().toLowerCase() && rowDate === dateStr) {
+    if (rowTech === searchTech && rowDate === dateStr) {
       tasks.push({
         start: rowStart,
         end: rowEnd,
@@ -201,7 +210,6 @@ function getTechnicianTasksForDate(techName, dateStr) {
     }
   }
   
-  tasks.sort((a, b) => a.start.localeCompare(b.start));
   return tasks;
 }
 
@@ -318,4 +326,75 @@ function submitWorkReport(formData) {
   } catch (error) {
     return { success: false, message: "Błąd podczas zapisu: " + error.toString() };
   }
+}
+// ... (istniejący kod) ...
+
+// FUNKCJA TESTOWA - Uruchom ją ręcznie z edytora!
+function TEST_Kalkulacji_Procentow() {
+  Logger.log("--- ROZPOCZYNAM TEST OBLICZEŃ (Opcja A + Statystyki) ---");
+  
+  // 1. Wywołujemy główną funkcję pobierającą dane
+  let data;
+  try {
+    data = getInitialData();
+  } catch (e) {
+    Logger.log("BŁĄD KRYTYCZNY przy pobieraniu getInitialData: " + e.message);
+    return;
+  }
+  
+  if (!data || !data.tasksTree) {
+    Logger.log("BŁĄD: getInitialData zwróciło puste tasksTree.");
+    return;
+  }
+
+  // --- NOWA SEKCJA: TEST STATYSTYK I GODZIN ---
+  Logger.log("\n--- STATYSTYKI OGÓLNE ---");
+  if (data.techStats) {
+    Logger.log(`Liczba techników w historii (wszyscy): ${data.techStats.total}`);
+    Logger.log(`Liczba aktywnych techników: ${data.techStats.active}`);
+  } else {
+    Logger.log("Brak danych o technikach (obiekt techStats nie istnieje).");
+  }
+  Logger.log(`Całkowita liczba przepracowanych godzin: ${data.totalWorkedHours || 0}h`);
+  Logger.log("-------------------------\n");
+
+  // 2. Symulujemy matematykę front-endu
+  let totalProjectPlannedDays = 0;
+  let weightedProgressSum = 0;
+  let validTaskCount = 0;
+
+  Object.keys(data.tasksTree).forEach(deck => {
+    Object.keys(data.tasksTree[deck]).forEach(area => {
+      data.tasksTree[deck][area].forEach(task => {
+        let weight = task.plannedDays;
+        let progress = task.progress;
+        
+        // Zabezpieczenie przed NaN (Not a Number) w razie dziwnych danych
+        if (isNaN(weight) || isNaN(progress)) {
+           Logger.log(`UWAGA! Zły format w zadaniu: ${task.taskName} (Pokład: ${deck}). Dni: ${weight}, Postęp: ${progress}`);
+           return; // Pomijamy zepsute zadanie w tym teście
+        }
+        
+        totalProjectPlannedDays += weight;
+        weightedProgressSum += (progress * weight);
+        validTaskCount++;
+      });
+    });
+  });
+
+  Logger.log(`Zliczono ważnych zadań (z dniami > 0): ${validTaskCount}`);
+  Logger.log(`Całkowita suma dni planowanych (mianownik): ${totalProjectPlannedDays}`);
+  Logger.log(`Suma (postęp * dni) (licznik): ${weightedProgressSum}`);
+
+  // 3. Obliczenie wyniku
+  let finalProjectProgress = 0;
+  if (totalProjectPlannedDays > 0) {
+    finalProjectProgress = (weightedProgressSum / totalProjectPlannedDays);
+    Logger.log(`\n=> FINALNY WYNIK (surowy): ${finalProjectProgress}%`);
+    Logger.log(`=> FINALNY WYNIK (zaokrąglony): ${Math.round(finalProjectProgress)}%`);
+  } else {
+    Logger.log("\n=> BŁĄD: Suma dni wynosi 0, nie można obliczyć % (Dzielenie przez zero).");
+  }
+  
+  Logger.log("--- KONIEC TESTU ---");
 }

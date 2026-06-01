@@ -327,24 +327,59 @@ function parseDateToYMD(val) {
 
 /**
  * NOWE: Akceptuje tablicę techniciansArray zamiast pojedynczego stringa
+ * ORAZ: Obsługuje dodawanie nowych wierszy (Extra Work) do zakładki Candido
  */
 function submitWorkReport(formData) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let idPrac = "";
     
-    if (formData.taskRow) {
-      const sheetCandido = ss.getSheetByName('Candido');
+    const sheetCandido = ss.getSheetByName('Candido');
+    
+    // 1. OBSŁUGA ZAKŁADKI CANDIDO (Aktualizacja lub Nowe Zadanie)
+    if (formData.isCustomTask) {
       if (sheetCandido) {
-        idPrac = sheetCandido.getRange(parseInt(formData.taskRow), 6).getValue();
-        if (!idPrac || idPrac === "") idPrac = "Wiersz " + formData.taskRow;
+        idPrac = formData.customTaskId || "Dodatkowe";
         
+        // Zmiana formatu daty z YYYY-MM-DD (HTML) na MM/DD/YYYY (Dla Candido)
+        let formattedDate = formData.workDate;
+        let dParts = formData.workDate.split('-');
+        if (dParts.length === 3) {
+           formattedDate = `${dParts[1]}/${dParts[2]}/${dParts[0]}`; 
+        }
+
+        // Tworzymy pusty wiersz (16 kolumn od A do P)
+        let newRow = new Array(16).fill("");
+        // Wypełniamy odpowiednie kolumny (indeksy tablicy liczone od 0)
+        newRow[2] = formData.deck;             // C - Pokład
+        newRow[3] = formData.area;             // D - Strefa
+        newRow[5] = idPrac;                    // F - ID prac
+        newRow[7] = "Seavia";                  // H - Wykonawca
+        newRow[8] = formData.taskName;         // I - Nazwa prac
+        newRow[9] = formattedDate;             // J - Start prac
+        newRow[12] = formattedDate;            // M - Koniec prac
         if (formData.progress) {
-          sheetCandido.getRange(parseInt(formData.taskRow), 16).setValue(formData.progress + "%");
+          newRow[15] = formData.progress + "%"; // P - Postęp
+        }
+        
+        // Dodajemy wiersz na sam dół zakładki Candido
+        sheetCandido.appendRow(newRow);
+      }
+    } else {
+      // Stara logika dla istniejących zadań
+      if (formData.taskRow) {
+        if (sheetCandido) {
+          idPrac = sheetCandido.getRange(parseInt(formData.taskRow), 6).getValue();
+          if (!idPrac || idPrac === "") idPrac = "Wiersz " + formData.taskRow;
+          
+          if (formData.progress) {
+            sheetCandido.getRange(parseInt(formData.taskRow), 16).setValue(formData.progress + "%");
+          }
         }
       }
     }
 
+    // 2. REJESTRACJA W SPISIE WYKONANYCH PRAC
     let sheetSpis = ss.getSheetByName('Spis wykonanych prac');
     if (!sheetSpis) sheetSpis = ss.insertSheet('Spis wykonanych prac');
     
@@ -496,6 +531,101 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
        reportData.decks[d].tasks[t] = reportData.decks[d].tasks[t].map(h => Math.round(h * 10) / 10);
      });
   });
+
+  return reportData;
+}
+
+/**
+ * NOWE: Generuje zbiorcze dane dla indywidualnych kart pracy (Timesheet) techników na dany tydzień.
+ */
+function getTechnicianWeeklyReports(dateStr, includeBreaks) {
+  if (!dateStr) return null;
+  
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
+  if (!sheetSpis || sheetSpis.getLastRow() < 2) return null;
+
+  // 1. Obliczanie zakresu tygodnia (Pon-Nd)
+  let selectedDate = new Date(dateStr);
+  let dayOfWeek = selectedDate.getDay(); 
+  let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+  
+  let monday = new Date(selectedDate.setDate(diff));
+  let weekDates = []; 
+  
+  for (let i = 0; i < 7; i++) {
+    let d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    weekDates.push(parseDateToYMD(d));
+  }
+
+  // Numer tygodnia i rok (ISO)
+  let target = new Date(monday.valueOf());
+  let dayNr = (monday.getDay() + 6) % 7;
+  target.setDate(target.getDate() - dayNr + 3);
+  let firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
+  let year = target.getFullYear();
+
+  let reportData = {
+    weekInfo: {
+      weekNumber: weekNum,
+      year: year,
+      dates: weekDates
+    },
+    technicians: {}
+  };
+
+  const spisData = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 8).getDisplayValues();
+  const rawDates = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 1).getValues();
+
+  for (let i = 0; i < spisData.length; i++) {
+    let rowDate = parseDateToYMD(rawDates[i][0]);
+    let dayIndex = weekDates.indexOf(rowDate);
+    
+    if (dayIndex === -1) continue;
+
+    let rowStart = String(spisData[i][1]).trim();
+    let rowEnd = String(spisData[i][2]).trim();
+    let rowDeck = String(spisData[i][3]).trim();
+    let rowArea = String(spisData[i][4]).trim();
+    let rowTask = String(spisData[i][5]).trim();
+    let rowRoomId = String(spisData[i][6]).trim(); // DODANO: Pobieranie ID Prac (Activity ID z Candido kol. F)
+    let techName = String(spisData[i][7]).trim();
+    let isCancelled = rowTask.includes("[ANULOWANE]");
+    
+    let isBreak = rowTask.toLowerCase().includes("przerwa") || rowTask.toLowerCase().includes("break") || rowTask.toLowerCase().includes("brake");
+    if (isBreak && !includeBreaks) continue;
+
+    if (!rowStart || !rowEnd || isCancelled || !techName || !rowTask) continue;
+
+    let duration = parseWorkTimeBackend(rowEnd) - parseWorkTimeBackend(rowStart);
+    if (duration < 0) duration += 24; 
+    
+    if (duration > 0) {
+      if (!reportData.technicians[techName]) {
+         // Tworzymy pustą tablicę dla 7 dni tygodnia
+         reportData.technicians[techName] = { 
+             totalHours: 0, 
+             days: [[], [], [], [], [], [], []] 
+         };
+      }
+      
+      reportData.technicians[techName].days[dayIndex].push({
+         start: rowStart,
+         end: rowEnd,
+         hours: duration,
+         task: rowTask,
+         deck: rowDeck,
+         area: rowArea,
+         roomId: rowRoomId // DODANO: Przekazywanie Activity ID do PDF
+      });
+      
+      reportData.technicians[techName].totalHours += duration;
+    }
+  }
 
   return reportData;
 }

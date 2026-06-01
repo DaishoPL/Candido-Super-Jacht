@@ -1,107 +1,115 @@
-<form id="workForm" onsubmit="submitForm(event)" class="bg-white rounded-lg shadow-sm border border-gray-100 min-h-[400px]">
-  
-  <!-- Sekcja 1: Użytkownik i Czas -->
-  <div class="p-8 border-b border-gray-100">
-    <div class="flex justify-between items-center mb-5">
-      <h3 class="text-lg font-bold text-seaviaBlue"><i class="fa-regular fa-clock mr-2 text-candidoRed"></i> Dane pracownika i godziny</h3>
-      <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Krok 1</span>
-    </div>
-    
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Wybierz pracownika</label>
-        <select id="technician" required onchange="onTechOrDateChange()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed focus:border-candidoRed bg-slate-50 font-medium text-slate-700">
-          <option value="" disabled selected>Wybierz z listy...</option>
-        </select>
-      </div>
+<div class="bg-white rounded-lg shadow-sm p-8 border border-gray-100 animate-fade-in">
+  <h2 class="text-2xl font-bold text-seaviaBlue mb-6 border-b pb-2">Karta Zadań</h2>
 
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Data prac</label>
-        <input type="date" id="workDate" required onchange="onTechOrDateChange()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-slate-50 font-medium text-slate-700">
-      </div>
+  <form id="workReportForm" onsubmit="submitForm(event)">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+      
+      <!-- LEWA STRONA: KTO I KIEDY -->
+      <div class="space-y-6">
+        
+        <!-- Przełącznik Trybu Przypisywania -->
+        <div class="bg-slate-50 p-4 rounded-md border border-slate-200">
+          <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">Tryb przypisywania</p>
+          <div class="flex space-x-6">
+            <label class="flex items-center space-x-2 cursor-pointer group">
+              <input type="radio" name="assignMode" value="tech" checked class="w-4 h-4 text-seaviaBlue focus:ring-seaviaBlue" onchange="switchAssignMode()">
+              <span class="text-sm font-bold text-slate-700 group-hover:text-seaviaBlue transition-colors">Pojedynczy Technik</span>
+            </label>
+            <label class="flex items-center space-x-2 cursor-pointer group">
+              <input type="radio" name="assignMode" value="team" class="w-4 h-4 text-seaviaBlue focus:ring-seaviaBlue" onchange="switchAssignMode()">
+              <span class="text-sm font-bold text-slate-700 group-hover:text-seaviaBlue transition-colors">Cały Team</span>
+            </label>
+          </div>
+        </div>
 
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Rozpoczęcie (Start)</label>
-        <input type="time" id="timeStart" required onchange="validateTimes()" oninput="validateTimes()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-slate-50 font-medium text-slate-700">
-      </div>
+        <div>
+          <label id="assignTargetLabel" class="block text-sm font-bold text-slate-700 mb-1">Wybierz technika</label>
+          <select id="assignTarget" class="w-full border border-slate-300 rounded-md p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-slate-50 transition-all" onchange="onTargetOrDateChange()" required>
+            <option value="" disabled selected>Ładowanie...</option>
+          </select>
+        </div>
 
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Zakończenie (Koniec)</label>
-        <input type="time" id="timeEnd" required onchange="validateTimes()" oninput="validateTimes()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-slate-50 font-medium text-slate-700">
-      </div>
+        <div>
+          <label class="block text-sm font-bold text-slate-700 mb-1">Data prac</label>
+          <input type="date" id="workDate" class="w-full border border-slate-300 rounded-md p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-slate-50" onchange="onTargetOrDateChange()" required>
+        </div>
 
-      <!-- Moduł Walidacji i Harmonogramu -->
-      <div id="timeErrorMsg" class="col-span-1 md:col-span-2 hidden">
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm font-medium">
-          <span id="timeErrorText"><i class="fa-solid fa-circle-exclamation mr-1"></i> Błąd: ...</span>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Od godziny</label>
+            <input type="time" id="timeStart" class="w-full border border-slate-300 rounded-md p-2.5 focus:ring-2 focus:ring-seaviaBlue" onchange="validateTimes()" required>
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1">Do godziny</label>
+            <input type="time" id="timeEnd" class="w-full border border-slate-300 rounded-md p-2.5 focus:ring-2 focus:ring-seaviaBlue" onchange="validateTimes()" required>
+          </div>
+        </div>
+
+        <!-- Błędy w czasie -->
+        <div id="timeErrorMsg" class="hidden bg-red-50 text-red-600 p-3 rounded-md border border-red-200 text-sm font-bold animate-fade-in shadow-sm">
+          <span id="timeErrorText">Konflikt godzin!</span>
+        </div>
+
+        <!-- Harmonogram -->
+        <div id="scheduleSection" class="hidden mt-4 bg-slate-50 p-4 rounded-md border border-slate-200 shadow-inner">
+          <p id="scheduleTitle" class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Dzisiejszy harmonogram</p>
+          <ul id="scheduleList" class="text-sm space-y-1">
+            <!-- Lista zadań wygenerowana przez JS -->
+          </ul>
         </div>
       </div>
 
-      <div id="scheduleSection" class="col-span-1 md:col-span-2 hidden mt-1">
-         <div class="p-4 bg-slate-50 border border-slate-200 rounded-md">
-           <h4 class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2"><i class="fa-solid fa-list-check mr-1"></i> Dzisiejszy harmonogram pracownika:</h4>
-           <ul id="scheduleList" class="text-sm text-slate-700 space-y-1 font-medium">
-              <!-- Wypełniane dynamicznie przez skrypt -->
-           </ul>
-         </div>
+      <!-- PRAWA STRONA: CO ROBIŁ -->
+      <div class="space-y-6">
+        
+        <!-- Pusty blok wyrównujący do wysokości przełącznika (widoczny tylko na dużych ekranach) -->
+        <div class="hidden md:block h-[86px]"></div>
+
+        <div>
+          <label class="block text-sm font-bold text-slate-700 mb-1">Pokład</label>
+          <select id="deckSelect" class="w-full border border-slate-300 rounded-md p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-slate-50" onchange="onDeckChange()" required>
+            <option value="" disabled selected>Ładowanie...</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-slate-700 mb-1">Powierzchnia / Strefa</label>
+          <select id="areaSelect" class="w-full border border-slate-300 rounded-md p-2.5 bg-gray-100 opacity-60 transition-all" disabled onchange="onAreaChange()" required>
+            <option value="" disabled selected>Najpierw wybierz pokład...</option>
+          </select>
+          <input type="text" id="customAreaInput" placeholder="Wpisz nazwę strefy..." class="hidden mt-2 w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-seaviaBlue">
+        </div>
+
+        <div>
+          <label class="block text-sm font-bold text-slate-700 mb-1">Zadanie</label>
+          <select id="taskSelect" class="w-full border border-slate-300 rounded-md p-2.5 bg-gray-100 opacity-60 transition-all" disabled onchange="onTaskChange()" required>
+            <option value="" disabled selected>Najpierw wybierz strefę...</option>
+          </select>
+          
+          <!-- Ukryte pola do wpisywania ręcznego z wkomponowanym nowym ID ZADANIA -->
+          <div id="customTaskContainer" class="hidden mt-2 space-y-2">
+            <input type="text" id="customTaskInput" placeholder="Wpisz nazwę zadania..." class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-seaviaBlue">
+            <input type="text" id="customTaskIdInput" placeholder="Wpisz ID prac (Opcjonalne, np. EX-01)..." class="w-full border border-slate-300 rounded-md p-2 focus:ring-2 focus:ring-seaviaBlue bg-slate-50 text-xs text-slate-500">
+          </div>
+        </div>
+
+        <div id="progressSection" class="hidden bg-blue-50 p-4 rounded-md border border-blue-100 mt-4 animate-fade-in shadow-sm">
+          <label class="block text-sm font-bold text-seaviaBlue mb-2">Zaktualizuj % wykonania zadania:</label>
+          <div class="flex items-center space-x-4">
+            <input type="range" id="progressRange" min="0" max="100" step="5" class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer accent-seaviaBlue" oninput="document.getElementById('progressValue').innerText = this.value + '%'">
+            <span id="progressValue" class="text-xl font-bold text-seaviaBlue w-16 text-right">0%</span>
+          </div>
+          <input type="hidden" id="taskRowNumber">
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Sekcja 2: Zadanie -->
-  <div class="p-8 border-b border-gray-100 bg-slate-50">
-    <div class="flex justify-between items-center mb-5">
-      <h3 class="text-lg font-bold text-seaviaBlue"><i class="fa-solid fa-hammer mr-2 text-candidoRed"></i> Przydział zadania z harmonogramu</h3>
-      <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Krok 2</span>
+    <!-- Przycisk Zapisu -->
+    <div class="mt-10 border-t border-slate-200 pt-6 flex justify-end">
+      <button type="submit" id="submitBtn" class="bg-seaviaBlue hover:bg-[#0a1e38] text-white font-bold py-3 px-8 rounded-md shadow-md transition-all flex items-center text-lg">
+        <span>Zapisz i prześlij</span>
+        <i class="fa-solid fa-paper-plane ml-3"></i>
+      </button>
     </div>
-    
-    <div class="space-y-5">
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">1. Wybierz Pokład (Deck)</label>
-        <select id="deckSelect" required onchange="onDeckChange()" class="w-full rounded-md border border-slate-300 p-2.5 focus:ring-2 focus:ring-candidoRed bg-white font-medium text-slate-700 shadow-sm">
-          <option value="" disabled selected>Najpierw wybierz pokład...</option>
-        </select>
-      </div>
-
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">2. Powierzchnia / Obszar</label>
-        <select id="areaSelect" required onchange="onAreaChange()" disabled class="w-full rounded-md border border-slate-200 p-2.5 bg-gray-100 opacity-60 font-medium">
-          <option value="" disabled selected>Wybierz powierzchnię...</option>
-        </select>
-        <!-- NOWE: Pole do ręcznego wpisywania obszaru -->
-        <input type="text" id="customAreaInput" placeholder="Wpisz nazwę obszaru..." class="w-full rounded-md border border-slate-300 p-2.5 mt-2 hidden focus:ring-2 focus:ring-candidoRed bg-white font-medium text-slate-700 shadow-sm">
-      </div>
-
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">3. Wykonane Zadanie</label>
-        <select id="taskSelect" required onchange="onTaskChange()" disabled class="w-full rounded-md border border-slate-200 p-2.5 bg-gray-100 opacity-60 font-medium">
-          <option value="" disabled selected>Wybierz zadanie...</option>
-        </select>
-        <!-- NOWE: Pole do ręcznego wpisywania zadania -->
-        <input type="text" id="customTaskInput" placeholder="Wpisz realizowane zadanie..." class="w-full rounded-md border border-slate-300 p-2.5 mt-2 hidden focus:ring-2 focus:ring-candidoRed bg-white font-medium text-slate-700 shadow-sm">
-        <input type="hidden" id="taskRowNumber">
-      </div>
-    </div>
-  </div>
-
-  <!-- Sekcja 3: Postęp i Zapis -->
-  <div id="progressSection" class="p-8 hidden transition-all duration-300">
-    <div class="mb-6">
-      <h3 class="text-sm font-bold text-seaviaBlue uppercase tracking-wider mb-2">Poziom wykonania zadania (%)</h3>
-      <p class="text-xs text-slate-500 mb-4">Wartość zostanie zaaktualizowana w głównej tabeli projektu.</p>
-      
-      <div class="flex items-center gap-4 bg-white p-4 rounded-md border border-slate-200 shadow-sm">
-        <input type="range" id="progressRange" min="0" max="100" step="5" value="0" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-candidoRed" oninput="document.getElementById('progressValue').innerText = this.value + '%'">
-        <span id="progressValue" class="text-xl font-bold text-candidoRed min-w-[3rem] text-right">0%</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="p-6 bg-slate-100 rounded-b-lg flex justify-end">
-     <button type="submit" id="submitBtn" class="bg-candidoRed hover:bg-red-700 text-white font-bold py-3 px-8 rounded-md shadow-md transition-all flex items-center">
-      <span>Zapisz i prześlij</span>
-      <i class="fa-solid fa-paper-plane ml-3"></i>
-    </button>
-  </div>
-  
-</form>
+  </form>
+</div>

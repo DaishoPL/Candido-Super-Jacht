@@ -6,17 +6,17 @@
   
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
     <div>
-      <h2 class="text-2xl font-bold text-seaviaBlue">Raporty Tygodniowe</h2>
-      <p class="text-sm text-slate-500 mt-1">Generuj rozliczenia godzinowe (Candido) dla wybranych tygodni.</p>
+      <h2 class="text-2xl font-bold text-seaviaBlue"><i class="fa-solid fa-file-contract mr-2 text-candidoRed"></i> Centrum Raportowania</h2>
+      <p class="text-sm text-slate-500 mt-1">Generuj zbiorcze rozliczenia godzinowe lub indywidualne Karty Pracy techników.</p>
     </div>
   </div>
 
   <!-- Panel Sterowania -->
-  <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-8 flex flex-col md:flex-row gap-6 items-end">
+  <div class="bg-slate-50 p-5 rounded-lg border border-slate-200 mb-8 flex flex-col md:flex-row gap-6 items-end">
     
-    <div class="w-full md:w-auto">
-      <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Wybierz dowolny dzień z tygodnia</label>
-      <input type="date" id="reportDate" class="w-full md:w-48 border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
+    <div class="w-full md:w-48">
+      <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Dzień w Tygodniu</label>
+      <input type="date" id="reportDate" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
     </div>
 
     <div class="w-full md:w-auto flex items-center h-[42px]">
@@ -26,14 +26,16 @@
       </label>
     </div>
 
-    <div class="w-full md:w-auto ml-auto">
-      <button onclick="fetchWeeklyReport()" id="btnGenerateReport" class="w-full bg-seaviaBlue hover:bg-[#0a1e38] text-white font-bold py-2.5 px-6 rounded shadow-sm transition-all flex items-center justify-center">
-        <i class="fa-solid fa-bolt mr-2"></i> Generuj Raport
+    <div class="w-full md:w-auto ml-auto flex flex-col sm:flex-row gap-3">
+      <button onclick="fetchWeeklyReport()" id="btnGenerateReport" class="w-full sm:w-auto bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2.5 px-5 rounded shadow-sm transition-all flex items-center justify-center">
+        <i class="fa-solid fa-table-list mr-2"></i> Sumy wg Pokładów
+      </button>
+      <button onclick="fetchTechnicianTimesheets()" id="btnGenerateTimesheets" class="w-full sm:w-auto bg-seaviaBlue hover:bg-[#0a1e38] text-white font-bold py-2.5 px-5 rounded shadow-sm transition-all flex items-center justify-center">
+        <i class="fa-solid fa-users-viewfinder mr-2"></i> Karty Pracy Techników (PDF)
       </button>
     </div>
   </div>
 
-  <!-- Wynik Raportu -->
   <div id="reportContainer" class="hidden">
      <!-- Przyciski Pobierania -->
      <div class="flex flex-col sm:flex-row justify-end gap-3 mb-6 border-b border-slate-200 pb-6">
@@ -41,14 +43,10 @@
           <i class="fa-solid fa-file-excel mr-2"></i> Pobierz XLSX (Excel)
         </button>
         <button onclick="exportToPDF()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded text-sm shadow-sm transition-all flex items-center justify-center">
-          <i class="fa-solid fa-file-pdf mr-2"></i> Pobierz PDF
+          <i class="fa-solid fa-file-pdf mr-2"></i> Pobierz PDF (Pionowo)
         </button>
      </div>
-
-     <!-- Miejsce na generowane tabele (Ten obszar "łapie" PDF) -->
-     <div id="reportContent" class="bg-white p-2 sm:p-6 mx-auto max-w-5xl">
-        <!-- Tutaj wpadnie JS -->
-     </div>
+     <div id="reportContent" class="bg-white p-2 sm:p-6 mx-auto max-w-5xl"></div>
   </div>
 
 </div>
@@ -56,13 +54,13 @@
 <script>
   let currentReportData = null;
 
-  // Inicjalizacja dzisiejszej daty
   document.addEventListener("DOMContentLoaded", () => {
      const today = new Date().toISOString().split('T')[0];
      const dateInput = document.getElementById('reportDate');
      if(dateInput) dateInput.value = today;
   });
 
+  // --- FUNKCJA RAPORTU POKŁADÓW ---
   function fetchWeeklyReport() {
     const dateStr = document.getElementById('reportDate').value;
     const includeBreaks = document.getElementById('reportIncludeBreaks').checked;
@@ -70,24 +68,211 @@
     
     if (!dateStr) { alert("Wybierz datę!"); return; }
 
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Generowanie...';
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Pobieranie...';
     btn.disabled = true;
 
     google.script.run
       .withSuccessHandler(data => {
         currentReportData = data;
-        renderReport(data);
-        btn.innerHTML = '<i class="fa-solid fa-bolt mr-2"></i> Generuj Raport';
+        renderReport(data); 
+        btn.innerHTML = '<i class="fa-solid fa-table-list mr-2"></i> Sumy wg Pokładów';
         btn.disabled = false;
       })
       .withFailureHandler(err => {
         alert("Błąd: " + err);
-        btn.innerHTML = '<i class="fa-solid fa-bolt mr-2"></i> Generuj Raport';
+        btn.innerHTML = '<i class="fa-solid fa-table-list mr-2"></i> Sumy wg Pokładów';
         btn.disabled = false;
       })
       .getCandidoWeeklyReport(dateStr, includeBreaks);
   }
 
+  // --- FUNKCJA KART PRACY TECHNIKÓW ---
+  function fetchTechnicianTimesheets() {
+    const dateStr = document.getElementById('reportDate').value;
+    const includeBreaks = document.getElementById('reportIncludeBreaks').checked;
+    const btn = document.getElementById('btnGenerateTimesheets');
+    
+    if (!dateStr) { alert("Wybierz datę z tygodnia!"); return; }
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Przygotowuję karty...';
+    btn.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(data => {
+        if (!data || Object.keys(data.technicians).length === 0) {
+            alert("Brak przepracowanych godzin przez techników w wybranym tygodniu.");
+            btn.innerHTML = '<i class="fa-solid fa-users-viewfinder mr-2"></i> Karty Pracy Techników (PDF)';
+            btn.disabled = false;
+            return;
+        }
+        btn.innerHTML = '<i class="fa-solid fa-file-pdf mr-2"></i> Generowanie PDF...';
+        
+        generateTechnicianPDFs(data, btn);
+      })
+      .withFailureHandler(err => {
+        alert("Błąd: " + err);
+        btn.innerHTML = '<i class="fa-solid fa-users-viewfinder mr-2"></i> Karty Pracy Techników (PDF)';
+        btn.disabled = false;
+      })
+      .getTechnicianWeeklyReports(dateStr, includeBreaks);
+  }
+
+  // --- GENEROWANIE WIELE STRON DO PDF (ORIENTACJA POZIOMA) ---
+  function generateTechnicianPDFs(data, btnElement) {
+      const dayNames = ["MON.", "TUE.", "WED.", "THU.", "FRI.", "SAT.", "SUN."];
+      
+      // Zmniejszone marginesy i czcionki, usunięte logo SVG, czysty logotyp CSS
+      let html = `
+      <style>
+          .ts-container { font-family: Arial, sans-serif; background-color: #ffffff; width: 1050px; color: #000000; }
+          .ts-page { padding: 20px; page-break-after: always; box-sizing: border-box; background-color: #ffffff; }
+          .ts-page:last-child { page-break-after: auto; }
+          .ts-logo-bar { background-color: #4a4a4a; color: white; padding: 10px 15px; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 5px; position: relative;}
+          .ts-logo-bar::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 30%; background-color: #555555; clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%); }
+          .ts-logo-text { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 20px; letter-spacing: 2px; position: relative; z-index: 10;}
+          .ts-logo-text span { font-weight: bold; }
+          .ts-address { font-size: 9px; color: #666; margin-bottom: 15px; padding-left: 5px;}
+          .ts-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
+          .ts-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          .ts-table th, .ts-table td { border: 1px solid #333; padding: 4px 6px; text-align: left; vertical-align: middle; }
+          .ts-info td { padding: 4px 6px; }
+          .ts-label { font-weight: bold; font-size: 11px; width: 80px; border-right: none;}
+          .ts-value { border-left: none; font-size: 11px;}
+          .ts-grid th { background-color: #e8e8e8; font-weight: normal; text-align: center; font-size: 10px; padding: 6px;}
+          .ts-grid td.day-col { width: 50px; font-weight: bold; font-size: 10px; vertical-align: middle; text-align: center;}
+          .ts-grid td { font-size: 10px; height: 25px;} 
+          .ts-center { text-align: center; vertical-align: middle !important;}
+          .ts-total td { background-color: #e8e8e8; font-weight: bold; font-size: 11px;}
+          .ts-signs { display: flex; justify-content: space-around; margin-top: 30px; font-size: 11px;}
+          .ts-sign-box { text-align: center; width: 250px; }
+          .ts-sign-line { border-bottom: 1px solid #333; margin-bottom: 5px; height: 25px; }
+      </style>
+      <div class="ts-container">
+      `;
+
+      Object.keys(data.technicians).sort().forEach(techName => {
+          let tech = data.technicians[techName];
+          
+          html += `
+          <div class="ts-page">
+              <div class="ts-logo-bar">
+                  <div class="ts-logo-text"><span>CÁNDIDO</span> HERMIDA</div>
+              </div>
+              <div class="ts-address">Industrias Cándido Hermida, S.L CIF: B15057474 Pol. Ind. Rio do Pozo, Avda. Bernardo Romero, Parcela G2, 15570 Narón, A Coruña, España.</div>
+              
+              <div class="ts-title">HOUR LIST</div>
+              
+              <table class="ts-table ts-info">
+                  <tr>
+                      <td class="ts-label">COMPANY:</td>
+                      <td class="ts-value">SEAVIA</td>
+                      <td class="ts-label">SHIPYARD:</td>
+                      <td class="ts-value">DAMEN</td>
+                      <td class="ts-label" style="width: 100px;">PROJECT:</td>
+                      <td class="ts-value font-bold">REV OCEAN 19577</td>
+                  </tr>
+                  <tr>
+                      <td class="ts-label">WORKER:</td>
+                      <td colspan="5" class="ts-value" style="font-weight: bold; text-transform: uppercase;">${techName}</td>
+                  </tr>
+                  <tr>
+                      <td class="ts-label">WEEK:</td>
+                      <td class="ts-value" colspan="2">${data.weekInfo.weekNumber}</td>
+                      <td class="ts-label">YEAR:</td>
+                      <td class="ts-value" colspan="2">${data.weekInfo.year}</td>
+                  </tr>
+              </table>
+
+              <table class="ts-table ts-grid">
+                  <thead>
+                      <tr>
+                          <th width="8%"></th>
+                          <th width="12%">DATE</th>
+                          <th width="8%">FROM</th>
+                          <th width="8%">TO</th>
+                          <th width="8%">HOURS</th>
+                          <th width="32%">TASK</th>
+                          <th width="10%">DECK</th>
+                          <th width="14%">ROOM</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+          `;
+
+          // Zastosowanie rowspan, aby elegancko dzielić wiele prac na jeden dzień
+          tech.days.forEach((tasksArray, dayIndex) => {
+              let dName = dayNames[dayIndex];
+              let dDate = data.weekInfo.dates[dayIndex].split('-').reverse().join('.'); 
+              
+              if (tasksArray.length === 0) {
+                  html += `<tr><td class="day-col">${dName}</td><td class="ts-center">${dDate}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+              } else {
+                  tasksArray.forEach((t, index) => {
+                      html += `<tr>`;
+                      // Pierwszy wiersz z zadaniem zawiera dzień i datę połączoną funkcją rowspan
+                      if (index === 0) {
+                          html += `<td class="day-col" rowspan="${tasksArray.length}">${dName}</td>`;
+                          html += `<td class="ts-center" rowspan="${tasksArray.length}">${dDate}</td>`;
+                      }
+                      // Pozostałe kolumny są generowane osobno dla każdego zadania
+                      html += `<td class="ts-center">${t.start}</td>`;
+                      html += `<td class="ts-center">${t.end}</td>`;
+                      html += `<td class="ts-center font-bold">${t.hours.toFixed(1)}</td>`;
+                      html += `<td>${t.task}</td>`;
+                      html += `<td class="ts-center">${t.deck}</td>`;
+                      html += `<td class="ts-center">${t.roomId || '-'}</td>`; // ZMIANA: Wyświetlanie Activity ID
+                      html += `</tr>`;
+                  });
+              }
+          });
+
+          html += `
+                      <tr class="ts-total">
+                          <td class="day-col">TOTAL</td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                          <td class="ts-center">${tech.totalHours.toFixed(1)}</td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                      </tr>
+                  </tbody>
+              </table>
+
+              <div class="ts-signs">
+                  <div class="ts-sign-box">
+                      <div class="ts-sign-line"></div>
+                      SUBCONTRACTOR SIGNATURE
+                  </div>
+                  <div class="ts-sign-box">
+                      <div class="ts-sign-line"></div>
+                      CH RESPONSIBLE SIGNATURE
+                  </div>
+              </div>
+          </div>
+          `;
+      });
+
+      html += `</div>`;
+      
+      const opt = {
+        margin:       0.3,
+        filename:     `Karty_Pracy_Seavia_W${data.weekInfo.weekNumber}_${data.weekInfo.year}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        // Orientacja na 'landscape' (poziomo) i format A4
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' } 
+      };
+
+      // Podajemy bezpośrednio string html, aby omijać problemy z ukrywaniem divów przez CSS
+      html2pdf().set(opt).from(html).save().then(() => {
+         btnElement.innerHTML = '<i class="fa-solid fa-users-viewfinder mr-2"></i> Karty Pracy Techników (PDF)';
+         btnElement.disabled = false;
+      });
+  }
+
+  // --- FUNKCJE DLA RAPORTU POKŁADÓW (PIONOWEGO) ---
   function renderReport(data) {
     const container = document.getElementById('reportContainer');
     const content = document.getElementById('reportContent');
@@ -101,18 +286,15 @@
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     let html = `
-      <!-- Górny blok informacyjny -->
       <div class="bg-white p-3 border border-slate-300 mb-8 w-max min-w-[320px]">
          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Szczegóły raportu</p>
          <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
-           <span class="font-bold text-slate-700">Project name:</span> <span class="text-right text-seaviaBlue font-bold">ODIN (Candido)</span>
+           <span class="font-bold text-slate-700">Project name:</span> <span class="text-right text-seaviaBlue font-bold">REV OCEAN 19577</span>
            <span class="font-bold text-slate-700">Week no.:</span> <span class="text-right text-seaviaBlue font-bold">${data.weekInfo.weekNumber}</span>
            <span class="font-bold text-slate-700">Date range:</span> <span class="text-right font-mono">${data.weekInfo.start} / ${data.weekInfo.end}</span>
            <span class="font-bold text-slate-700">Paid Breaks:</span> <span class="text-right ${data.settings.includeBreaks ? 'text-emerald-600' : 'text-slate-400'} font-bold">${data.settings.includeBreaks ? 'YES' : 'NO'}</span>
          </div>
       </div>
-      
-      <!-- Kontener Flexbox wymuszający ułożenie tabel jedna pod drugą pionowo -->
       <div class="flex flex-col gap-y-10" id="pdf-export-wrapper">
     `;
 
@@ -145,11 +327,9 @@
                 <td class="p-1 border-r border-slate-300 text-center text-slate-500 font-medium">${index}</td>
                 <td class="p-1 border-r border-slate-300 font-bold text-slate-700 leading-tight">${taskName}</td>`;
 
-            // Kolumna Total PRZED dniami tygodnia
             let totalClass = total > 0 ? 'bg-green-200 text-green-900 font-black' : 'bg-slate-100 text-slate-400';
             rowHtml += `<td class="p-1 border-r border-slate-300 text-center ${totalClass}">${total > 0 ? total : '0'}</td>`;
 
-            // Dni tygodnia
             hours.forEach((h, i) => {
                 let cellClass = h > 0 ? 'bg-green-100 text-green-800 font-black' : 'text-slate-300';
                 rowHtml += `<td class="p-1 ${i < 6 ? 'border-r' : ''} border-slate-300 text-center ${cellClass}">${h > 0 ? h : '0'}</td>`;
@@ -159,16 +339,13 @@
             return rowHtml;
         };
 
-        // Supervision zawsze na sztywno z numerem 0
         html += renderRow("Supervision", 0);
 
-        // Filtrowanie zadań - wyrzucamy Break jeśli nie są wliczane do raportu
         let filteredTasks = data.allTasks;
         if (!data.settings.includeBreaks) {
             filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
         }
 
-        // Reszta unikalnych zadań posortowanych alfabetycznie od numeru 1
         let taskIndex = 1;
         filteredTasks.forEach(taskName => {
             html += renderRow(taskName, taskIndex++);
@@ -189,7 +366,6 @@
         return;
     }
     
-    // Ustawiamy szerokość na sztywno do PDF-a, żeby ładnie dopasował skalę
     const element = document.getElementById('reportContent'); 
     const opt = {
       margin:       0.3,
@@ -212,8 +388,7 @@
     const wb = XLSX.utils.book_new();
     const wsData = [];
 
-    // Nagłówek raportu w pliku Excel
-    wsData.push(["Project name:", "ODIN (Candido)"]);
+    wsData.push(["Project name:", "REV OCEAN 19577"]);
     wsData.push(["Week no.:", currentReportData.weekInfo.weekNumber]);
     wsData.push(["Date range:", currentReportData.weekInfo.start + " - " + currentReportData.weekInfo.end]);
     wsData.push(["Paid Breaks:", currentReportData.settings.includeBreaks ? "YES" : "NO"]);
@@ -225,7 +400,6 @@
         let deckData = currentReportData.decks[deckName].tasks || {};
 
         wsData.push([`WEEKLY SUM ${deckName}`]);
-        // Total PRZED dniami tygodnia w pliku Excel
         wsData.push(["No.", "Tasks", "Total", ...days]);
 
         const addRow = (taskName, index) => {
@@ -237,7 +411,6 @@
         addRow("Supervision", 0);
         let taskIndex = 1;
 
-        // Filtrowanie zadań dla Excela
         let filteredTasks = currentReportData.allTasks;
         if (!currentReportData.settings.includeBreaks) {
             filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
@@ -245,7 +418,7 @@
 
         filteredTasks.forEach(t => addRow(t, taskIndex++));
         
-        wsData.push([]); // Pusty wiersz oddzielający pokłady w Excelu
+        wsData.push([]); 
     });
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);

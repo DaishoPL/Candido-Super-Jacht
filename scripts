@@ -238,7 +238,9 @@
     const areaSelect = document.getElementById('areaSelect');
     const taskSelect = document.getElementById('taskSelect');
     const customAreaInput = document.getElementById('customAreaInput');
-    const customTaskInput = document.getElementById('customTaskInput');
+    
+    // ZMIANA: Usunięto szukanie i ukrywanie customTaskInput
+    const customTaskContainer = document.getElementById('customTaskContainer'); 
     
     areaSelect.innerHTML = '<option value="" disabled selected>Wybierz powierzchnię...</option>';
     taskSelect.innerHTML = '<option value="" disabled selected>Wybierz zadanie...</option>';
@@ -248,7 +250,9 @@
     if (progressSection) progressSection.classList.add('hidden');
 
     if(customAreaInput) customAreaInput.classList.add('hidden');
-    if(customTaskInput) customTaskInput.classList.add('hidden');
+    
+    // ZMIANA: Ukrywanie całego kontenera zadań (Nazwa + ID)
+    if(customTaskContainer) customTaskContainer.classList.add('hidden');
 
     if (deck && appData && appData.tasksTree && appData.tasksTree[deck]) {
       Object.keys(appData.tasksTree[deck]).sort().forEach(area => {
@@ -273,13 +277,16 @@
     const area = document.getElementById('areaSelect').value;
     const taskSelect = document.getElementById('taskSelect');
     const customAreaInput = document.getElementById('customAreaInput');
-    const customTaskInput = document.getElementById('customTaskInput');
+    
+    // ZMIANA: Usunięto szukanie i ukrywanie customTaskInput
+    const customTaskContainer = document.getElementById('customTaskContainer'); 
     
     taskSelect.innerHTML = '<option value="" disabled selected>Wybierz zadanie...</option>';
     const progressSection = document.getElementById('progressSection');
     if (progressSection) progressSection.classList.add('hidden');
     
-    if(customTaskInput) customTaskInput.classList.add('hidden');
+    // ZMIANA: Ukrywanie całego kontenera zadań
+    if(customTaskContainer) customTaskContainer.classList.add('hidden'); 
 
     if (area === "__CUSTOM__") {
       if(customAreaInput) customAreaInput.classList.remove('hidden');
@@ -317,17 +324,20 @@
 
   function onTaskChange() {
     const select = document.getElementById('taskSelect');
-    const customTaskInput = document.getElementById('customTaskInput');
+    // ZMIANA: Operujemy wyłącznie na kontenerze
+    const customTaskContainer = document.getElementById('customTaskContainer'); 
     const opt = select.options[select.selectedIndex];
     
     if (select.value === "__CUSTOM__") {
-      if(customTaskInput) customTaskInput.classList.remove('hidden');
+      // Odkrywamy cały kontener
+      if(customTaskContainer) customTaskContainer.classList.remove('hidden'); 
       document.getElementById('taskRowNumber').value = "";
       document.getElementById('progressRange').value = 0;
       document.getElementById('progressValue').innerText = '0%';
       document.getElementById('progressSection').classList.remove('hidden');
     } else {
-      if(customTaskInput) customTaskInput.classList.add('hidden');
+      // Chowamy cały kontener
+      if(customTaskContainer) customTaskContainer.classList.add('hidden'); 
       document.getElementById('taskRowNumber').value = opt.dataset.row;
       const prog = opt.dataset.progress || 0;
       document.getElementById('progressRange').value = prog;
@@ -361,9 +371,14 @@
       if(!selectedArea) { alert("Wpisz nazwę obszaru!"); return; }
     }
     
+    let isCustomTaskFlag = false; // NOWA FLAGA DO BACKENDU
     let selectedTask = document.getElementById('taskSelect').value;
+    let customTaskIdValue = "";
+    
     if (selectedTask === "__CUSTOM__") {
       selectedTask = document.getElementById('customTaskInput').value.trim();
+      customTaskIdValue = document.getElementById('customTaskIdInput').value.trim(); // POBIERANIE ID
+      isCustomTaskFlag = true;
       if(!selectedTask) { alert("Wpisz nazwę zadania!"); return; }
     }
 
@@ -399,7 +414,9 @@
       area: selectedArea,
       taskName: selectedTask,
       taskRow: document.getElementById('taskRowNumber').value,
-      progress: document.getElementById('progressRange').value
+      progress: document.getElementById('progressRange').value,
+      isCustomTask: isCustomTaskFlag, // WYSYŁAMY DO BACKENDU
+      customTaskId: customTaskIdValue // WYSYŁAMY DO BACKENDU
     };
 
     google.script.run

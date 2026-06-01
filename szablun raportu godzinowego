@@ -8,16 +8,22 @@
         .container { background-color: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 1100px; margin: 0 auto; }
         
         /* Logo and Header Styling */
-        .logo-bar { background-color: #555; color: white; padding: 15px 20px; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 5px; position: relative;}
-        .logo-bar::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 30%; background-color: #666; clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%); }
+        .logo-bar { background-color: #4a4a4a; color: white; padding: 15px 20px; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 5px; position: relative;}
+        .logo-bar::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 30%; background-color: #555555; clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%); }
         
-        /* Styl dla wgranego logo Candido */
-        .logo-img { 
-            height: 35px; 
-            position: relative; 
-            z-index: 10; 
-            /* Filtr zmieniający czarne logo na białe, by pasowało do ciemnego tła */
-            filter: brightness(0) invert(1); 
+        /* Czysty logotyp tekstowy o wysokiej estetyce */
+        .logo-text { 
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            color: #ffffff;
+            position: relative;
+            z-index: 10;
+            user-select: none;
+        }
+        .logo-text span {
+            font-weight: 300;
         }
 
         .company-address { font-size: 9px; color: #666; margin-bottom: 20px; padding-left: 5px;}
@@ -49,9 +55,9 @@
 
 <div class="container">
     
-    <!-- Candido Header z logo -->
+    <!-- Candido Header z czystym tekstem bez dodatkowych grafik -->
     <div class="logo-bar">
-        <img src="image_b1a082.png" alt="Candido Hermida Logo" class="logo-img" onerror="this.onerror=null; this.src='https://via.placeholder.com/250x40?text=CANDIDO+HERMIDA';">
+        <div class="logo-text">CÁNDIDO <span>HERMIDA</span></div>
     </div>
     <div class="company-address">Industrias Cándido Hermida, S.L CIF: B15057474 Pol. Ind. Rio do Pozo, Avda. Bernardo Romero, Parcela G2, 15570 Narón, A Coruña, España.</div>
 
@@ -64,7 +70,7 @@
             <td class="label">SHIPYARD:</td>
             <td class="value">DAMEN</td>
             <td class="label" style="width: 120px;">PROJECT:</td>
-            <td class="value">CH-CW20 ATRIUM</td>
+            <td class="value">REV OCEAN 19577</td>
         </tr>
         <tr>
             <td class="label">WORKER:</td>

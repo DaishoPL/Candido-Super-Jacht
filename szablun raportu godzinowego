@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Szablon Karty Pracy - Wzór Candido</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f0f0f0; padding: 20px; font-size: 12px;}
+        .container { background-color: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 1100px; margin: 0 auto; }
+        
+        /* Logo and Header Styling */
+        .logo-bar { background-color: #555; color: white; padding: 15px 20px; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 5px; position: relative;}
+        .logo-bar::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 30%; background-color: #666; clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%); }
+        
+        /* Styl dla wgranego logo Candido */
+        .logo-img { 
+            height: 35px; 
+            position: relative; 
+            z-index: 10; 
+            /* Filtr zmieniający czarne logo na białe, by pasowało do ciemnego tła */
+            filter: brightness(0) invert(1); 
+        }
+
+        .company-address { font-size: 9px; color: #666; margin-bottom: 20px; padding-left: 5px;}
+
+        .title { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th, td { border: 1px solid #333; padding: 8px; text-align: left; vertical-align: top; }
+        
+        /* Header Info Table */
+        .info-table { margin-bottom: 10px; }
+        .info-table td { padding: 5px 8px; }
+        .info-table td.label { font-weight: bold; font-size: 11px; width: 80px; border-right: none;}
+        .info-table td.value { border-left: none; }
+        
+        /* Main Grid */
+        .grid-table th { background-color: #e8e8e8; font-weight: normal; text-align: center; font-size: 11px;}
+        .grid-table td.day-col { width: 60px; font-weight: normal; font-size: 11px;}
+        .grid-table td { height: 35px; } /* Mimic row height from image */
+        .grid-table td.center { text-align: center; }
+        .total-row td { background-color: #e8e8e8; font-weight: bold; }
+
+        .signatures { display: flex; justify-content: space-around; margin-top: 50px; font-size: 11px;}
+        .signature-box { text-align: center; width: 250px; }
+        .signature-line { border-bottom: 1px solid #333; margin-bottom: 5px; height: 30px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <!-- Candido Header z logo -->
+    <div class="logo-bar">
+        <img src="image_b1a082.png" alt="Candido Hermida Logo" class="logo-img" onerror="this.onerror=null; this.src='https://via.placeholder.com/250x40?text=CANDIDO+HERMIDA';">
+    </div>
+    <div class="company-address">Industrias Cándido Hermida, S.L CIF: B15057474 Pol. Ind. Rio do Pozo, Avda. Bernardo Romero, Parcela G2, 15570 Narón, A Coruña, España.</div>
+
+    <div class="title">HOUR LIST</div>
+
+    <table class="info-table">
+        <tr>
+            <td class="label">COMPANY:</td>
+            <td class="value">SEAVIA</td>
+            <td class="label">SHIPYARD:</td>
+            <td class="value">DAMEN</td>
+            <td class="label" style="width: 120px;">PROJECT:</td>
+            <td class="value">CH-CW20 ATRIUM</td>
+        </tr>
+        <tr>
+            <td class="label">WORKER:</td>
+            <td colspan="5" class="value">[Imię i Nazwisko Technika]</td>
+        </tr>
+        <tr>
+            <td class="label">WEEK:</td>
+            <td class="value" colspan="2">[Numer Tygodnia]</td>
+            <td class="label">YEAR:</td>
+            <td class="value" colspan="2">2026</td>
+        </tr>
+    </table>
+
+    <table class="grid-table">
+        <thead>
+            <tr>
+                <th></th> <!-- Pusta komórka na dzień -->
+                <th width="10%">DATE</th>
+                <th width="10%">FROM</th>
+                <th width="10%">TO</th>
+                <th width="8%">HOURS</th>
+                <th width="35%">TASK</th>
+                <th width="12%">DECK</th>
+                <th width="15%">ROOM</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="day-col">MON.</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="day-col">TUE.</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="day-col">WED.</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="day-col">THU.</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="day-col">FRI.</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="day-col">SAT.</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td class="day-col">SUN.</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr class="total-row">
+                <td class="day-col">TOTAL</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="signatures">
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            SUBCONTRACTOR SIGNATURE
+        </div>
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            CH RESPONSIBLE SIGNATURE
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

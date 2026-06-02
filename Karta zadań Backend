@@ -425,6 +425,16 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return { decks: {}, weekInfo: {} };
 
+  // Pobranie nazwy projektu z komórki C2 w arkuszu "Data sheet"
+  let projectName = "Brak nazwy projektu";
+  const dataSheet = ss.getSheetByName('Data sheet');
+  if (dataSheet) {
+    const projectVal = dataSheet.getRange("C2").getValue();
+    if (projectVal) {
+      projectName = String(projectVal).trim();
+    }
+  }
+
   // 1. Obliczanie zakresu tygodnia (Pon-Nd) na bazie wybranej daty
   let selectedDate = new Date(dateStr);
   let dayOfWeek = selectedDate.getDay(); 
@@ -453,7 +463,10 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
   let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
   
   let reportData = {
-    settings: { includeBreaks: includeBreaks },
+    settings: { 
+      includeBreaks: includeBreaks,
+      projectName: projectName // Przekazanie nazwy projektu z backendu do frontendu
+    },
     weekInfo: {
       weekNumber: "W" + weekNum,
       start: weekDates[0],

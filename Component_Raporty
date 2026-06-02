@@ -30,6 +30,9 @@
       <button onclick="fetchWeeklyReport()" id="btnGenerateReport" class="w-full sm:w-auto bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2.5 px-5 rounded shadow-sm transition-all flex items-center justify-center">
         <i class="fa-solid fa-table-list mr-2"></i> Sumy wg Pokładów
       </button>
+      <button onclick="fetchTimeByWeekReport()" id="btnGenerateTimeByWeekReport" class="w-full sm:w-auto bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2.5 px-5 rounded shadow-sm transition-all flex items-center justify-center">
+        <i class="fa-solid fa-calendar-week mr-2"></i> Raport Czasu wg Tygodni
+      </button>
       <button onclick="fetchTechnicianTimesheets()" id="btnGenerateTimesheets" class="w-full sm:w-auto bg-seaviaBlue hover:bg-[#0a1e38] text-white font-bold py-2.5 px-5 rounded shadow-sm transition-all flex items-center justify-center">
         <i class="fa-solid fa-users-viewfinder mr-2"></i> Karty Pracy Techników (PDF)
       </button>
@@ -43,7 +46,7 @@
           <i class="fa-solid fa-file-excel mr-2"></i> Pobierz XLSX (Excel)
         </button>
         <button onclick="exportToPDF()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded text-sm shadow-sm transition-all flex items-center justify-center">
-          <i class="fa-solid fa-file-pdf mr-2"></i> Pobierz PDF (Pionowo)
+          <i class="fa-solid fa-file-pdf mr-2"></i> Pobierz PDF
         </button>
      </div>
      <div id="reportContent" class="bg-white p-2 sm:p-6 mx-auto max-w-5xl"></div>
@@ -53,6 +56,7 @@
 
 <script>
   let currentReportData = null;
+  let currentReportType = 'weekly'; // Możliwe wartości: 'weekly', 'timeByWeek'
 
   document.addEventListener("DOMContentLoaded", () => {
      const today = new Date().toISOString().split('T')[0];
@@ -60,7 +64,7 @@
      if(dateInput) dateInput.value = today;
   });
 
-  // --- FUNKCJA RAPORTU POKŁADÓW ---
+  // --- FUNKCJA RAPORTU POKŁADÓW (SUMY WG DNI)---
   function fetchWeeklyReport() {
     const dateStr = document.getElementById('reportDate').value;
     const includeBreaks = document.getElementById('reportIncludeBreaks').checked;
@@ -73,6 +77,7 @@
 
     google.script.run
       .withSuccessHandler(data => {
+        currentReportType = 'weekly';
         currentReportData = data;
         renderReport(data); 
         btn.innerHTML = '<i class="fa-solid fa-table-list mr-2"></i> Sumy wg Pokładów';
@@ -85,6 +90,31 @@
       })
       .getCandidoWeeklyReport(dateStr, includeBreaks);
   }
+
+  // --- FUNKCJA RAPORTU CZASU WG TYGODNI ---
+  function fetchTimeByWeekReport() {
+    const includeBreaks = document.getElementById('reportIncludeBreaks').checked;
+    const btn = document.getElementById('btnGenerateTimeByWeekReport');
+    
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Przetwarzanie...';
+    btn.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(data => {
+        currentReportType = 'timeByWeek';
+        currentReportData = data;
+        renderTimeByWeekReport(data); 
+        btn.innerHTML = '<i class="fa-solid fa-calendar-week mr-2"></i> Raport Czasu wg Tygodni';
+        btn.disabled = false;
+      })
+      .withFailureHandler(err => {
+        alert("Błąd: " + err);
+        btn.innerHTML = '<i class="fa-solid fa-calendar-week mr-2"></i> Raport Czasu wg Tygodni';
+        btn.disabled = false;
+      })
+      .getTimeByWeekReport(includeBreaks);
+  }
+
 
   // --- FUNKCJA KART PRACY TECHNIKÓW ---
   function fetchTechnicianTimesheets() {
@@ -117,162 +147,160 @@
       .getTechnicianWeeklyReports(dateStr, includeBreaks);
   }
 
-  // --- GENEROWANIE WIELE STRON DO PDF (ORIENTACJA POZIOMA) ---
+  // --- GENEROWANIE KART PRACY W PDF ---
   function generateTechnicianPDFs(data, btnElement) {
-      const dayNames = ["MON.", "TUE.", "WED.", "THU.", "FRI.", "SAT.", "SUN."];
-      
-      // Zmniejszone marginesy i czcionki, usunięte logo SVG, czysty logotyp CSS
-      let html = `
-      <style>
-          .ts-container { font-family: Arial, sans-serif; background-color: #ffffff; width: 1050px; color: #000000; }
-          .ts-page { padding: 20px; page-break-after: always; box-sizing: border-box; background-color: #ffffff; }
-          .ts-page:last-child { page-break-after: auto; }
-          .ts-logo-bar { background-color: #4a4a4a; color: white; padding: 10px 15px; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 5px; position: relative;}
-          .ts-logo-bar::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 30%; background-color: #555555; clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%); }
-          .ts-logo-text { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 20px; letter-spacing: 2px; position: relative; z-index: 10;}
-          .ts-logo-text span { font-weight: bold; }
-          .ts-address { font-size: 9px; color: #666; margin-bottom: 15px; padding-left: 5px;}
-          .ts-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
-          .ts-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-          .ts-table th, .ts-table td { border: 1px solid #333; padding: 4px 6px; text-align: left; vertical-align: middle; }
-          .ts-info td { padding: 4px 6px; }
-          .ts-label { font-weight: bold; font-size: 11px; width: 80px; border-right: none;}
-          .ts-value { border-left: none; font-size: 11px;}
-          .ts-grid th { background-color: #e8e8e8; font-weight: normal; text-align: center; font-size: 10px; padding: 6px;}
-          .ts-grid td.day-col { width: 50px; font-weight: bold; font-size: 10px; vertical-align: middle; text-align: center;}
-          .ts-grid td { font-size: 10px; height: 25px;} 
-          .ts-center { text-align: center; vertical-align: middle !important;}
-          .ts-total td { background-color: #e8e8e8; font-weight: bold; font-size: 11px;}
-          .ts-signs { display: flex; justify-content: space-around; margin-top: 30px; font-size: 11px;}
-          .ts-sign-box { text-align: center; width: 250px; }
-          .ts-sign-line { border-bottom: 1px solid #333; margin-bottom: 5px; height: 25px; }
-      </style>
-      <div class="ts-container">
-      `;
+      window.scrollTo(0, 0);
 
-      Object.keys(data.technicians).sort().forEach(techName => {
-          let tech = data.technicians[techName];
-          
-          html += `
-          <div class="ts-page">
-              <div class="ts-logo-bar">
-                  <div class="ts-logo-text"><span>CÁNDIDO</span> HERMIDA</div>
-              </div>
-              <div class="ts-address">Industrias Cándido Hermida, S.L CIF: B15057474 Pol. Ind. Rio do Pozo, Avda. Bernardo Romero, Parcela G2, 15570 Narón, A Coruña, España.</div>
-              
-              <div class="ts-title">HOUR LIST</div>
-              
-              <table class="ts-table ts-info">
-                  <tr>
-                      <td class="ts-label">COMPANY:</td>
-                      <td class="ts-value">SEAVIA</td>
-                      <td class="ts-label">SHIPYARD:</td>
-                      <td class="ts-value">DAMEN</td>
-                      <td class="ts-label" style="width: 100px;">PROJECT:</td>
-                      <td class="ts-value font-bold">REV OCEAN 19577</td>
-                  </tr>
-                  <tr>
-                      <td class="ts-label">WORKER:</td>
-                      <td colspan="5" class="ts-value" style="font-weight: bold; text-transform: uppercase;">${techName}</td>
-                  </tr>
-                  <tr>
-                      <td class="ts-label">WEEK:</td>
-                      <td class="ts-value" colspan="2">${data.weekInfo.weekNumber}</td>
-                      <td class="ts-label">YEAR:</td>
-                      <td class="ts-value" colspan="2">${data.weekInfo.year}</td>
-                  </tr>
-              </table>
+      setTimeout(() => {
+        const dayNames = ["MON.", "TUE.", "WED.", "THU.", "FRI.", "SAT.", "SUN."];
+        
+        let html = `
+        <style>
+            .ts-container { font-family: Arial, sans-serif; background-color: #ffffff; width: 1050px; color: #000000; }
+            .ts-page { padding: 20px; page-break-after: always; box-sizing: border-box; background-color: #ffffff; }
+            .ts-page:last-child { page-break-after: auto; }
+            .ts-logo-bar { background-color: #4a4a4a; color: white; padding: 10px 15px; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 5px; position: relative;}
+            .ts-logo-bar::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 30%; background-color: #555555; clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%); }
+            .ts-logo-text { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 20px; letter-spacing: 2px; position: relative; z-index: 10;}
+            .ts-logo-text span { font-weight: bold; }
+            .ts-address { font-size: 9px; color: #666; margin-bottom: 15px; padding-left: 5px;}
+            .ts-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
+            .ts-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            .ts-table th, .ts-table td { border: 1px solid #333; padding: 4px 6px; text-align: left; vertical-align: middle; }
+            .ts-info td { padding: 4px 6px; }
+            .ts-label { font-weight: bold; font-size: 11px; width: 80px; border-right: none;}
+            .ts-value { border-left: none; font-size: 11px;}
+            .ts-grid th { background-color: #e8e8e8; font-weight: normal; text-align: center; font-size: 10px; padding: 6px;}
+            .ts-grid td.day-col { width: 50px; font-weight: bold; font-size: 10px; vertical-align: middle; text-align: center;}
+            .ts-grid td { font-size: 10px; height: 25px;} 
+            .ts-center { text-align: center; vertical-align: middle !important;}
+            .ts-total td { background-color: #e8e8e8; font-weight: bold; font-size: 11px;}
+            .ts-signs { display: flex; justify-content: space-around; margin-top: 30px; font-size: 11px;}
+            .ts-sign-box { text-align: center; width: 250px; }
+            .ts-sign-line { border-bottom: 1px solid #333; margin-bottom: 5px; height: 25px; }
+        </style>
+        <div class="ts-container">
+        `;
 
-              <table class="ts-table ts-grid">
-                  <thead>
-                      <tr>
-                          <th width="8%"></th>
-                          <th width="12%">DATE</th>
-                          <th width="8%">FROM</th>
-                          <th width="8%">TO</th>
-                          <th width="8%">HOURS</th>
-                          <th width="32%">TASK</th>
-                          <th width="10%">DECK</th>
-                          <th width="14%">ROOM</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-          `;
+        Object.keys(data.technicians).sort().forEach(techName => {
+            let tech = data.technicians[techName];
+            
+            html += `
+            <div class="ts-page">
+                <div class="ts-logo-bar">
+                    <div class="ts-logo-text"><span>CÁNDIDO</span> HERMIDA</div>
+                </div>
+                <div class="ts-address">Industrias Cándido Hermida, S.L CIF: B15057474 Pol. Ind. Rio do Pozo, Avda. Bernardo Romero, Parcela G2, 15570 Narón, A Coruña, España.</div>
+                
+                <div class="ts-title">HOUR LIST</div>
+                
+                <table class="ts-table ts-info">
+                    <tr>
+                        <td class="ts-label">COMPANY:</td>
+                        <td class="ts-value">SEAVIA</td>
+                        <td class="ts-label">SHIPYARD:</td>
+                        <td class="ts-value">DAMEN</td>
+                        <td class="ts-label" style="width: 100px;">PROJECT:</td>
+                        <td class="ts-value font-bold">REV OCEAN 19577</td>
+                    </tr>
+                    <tr>
+                        <td class="ts-label">WORKER:</td>
+                        <td colspan="5" class="ts-value" style="font-weight: bold; text-transform: uppercase;">${techName}</td>
+                    </tr>
+                    <tr>
+                        <td class="ts-label">WEEK:</td>
+                        <td class="ts-value" colspan="2">${data.weekInfo.weekNumber}</td>
+                        <td class="ts-label">YEAR:</td>
+                        <td class="ts-value" colspan="2">${data.weekInfo.year}</td>
+                    </tr>
+                </table>
 
-          // Zastosowanie rowspan, aby elegancko dzielić wiele prac na jeden dzień
-          tech.days.forEach((tasksArray, dayIndex) => {
-              let dName = dayNames[dayIndex];
-              let dDate = data.weekInfo.dates[dayIndex].split('-').reverse().join('.'); 
-              
-              if (tasksArray.length === 0) {
-                  html += `<tr><td class="day-col">${dName}</td><td class="ts-center">${dDate}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
-              } else {
-                  tasksArray.forEach((t, index) => {
-                      html += `<tr>`;
-                      // Pierwszy wiersz z zadaniem zawiera dzień i datę połączoną funkcją rowspan
-                      if (index === 0) {
-                          html += `<td class="day-col" rowspan="${tasksArray.length}">${dName}</td>`;
-                          html += `<td class="ts-center" rowspan="${tasksArray.length}">${dDate}</td>`;
-                      }
-                      // Pozostałe kolumny są generowane osobno dla każdego zadania
-                      html += `<td class="ts-center">${t.start}</td>`;
-                      html += `<td class="ts-center">${t.end}</td>`;
-                      html += `<td class="ts-center font-bold">${t.hours.toFixed(1)}</td>`;
-                      html += `<td>${t.task}</td>`;
-                      html += `<td class="ts-center">${t.deck}</td>`;
-                      html += `<td class="ts-center">${t.roomId || '-'}</td>`; // ZMIANA: Wyświetlanie Activity ID
-                      html += `</tr>`;
-                  });
-              }
-          });
+                <table class="ts-table ts-grid">
+                    <thead>
+                        <tr>
+                            <th width="8%"></th>
+                            <th width="12%">DATE</th>
+                            <th width="8%">FROM</th>
+                            <th width="8%">TO</th>
+                            <th width="8%">HOURS</th>
+                            <th width="32%">TASK</th>
+                            <th width="10%">DECK</th>
+                            <th width="14%">ROOM</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
 
-          html += `
-                      <tr class="ts-total">
-                          <td class="day-col">TOTAL</td>
-                          <td></td>
-                          <td></td>
-                          <td></td>
-                          <td class="ts-center">${tech.totalHours.toFixed(1)}</td>
-                          <td></td>
-                          <td></td>
-                          <td></td>
-                      </tr>
-                  </tbody>
-              </table>
+            tech.days.forEach((tasksArray, dayIndex) => {
+                let dName = dayNames[dayIndex];
+                let dDate = data.weekInfo.dates[dayIndex].split('-').reverse().join('.'); 
+                
+                if (tasksArray.length === 0) {
+                    html += `<tr><td class="day-col">${dName}</td><td class="ts-center">${dDate}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+                } else {
+                    tasksArray.forEach((t, index) => {
+                        html += `<tr>`;
+                        if (index === 0) {
+                            html += `<td class="day-col" rowspan="${tasksArray.length}">${dName}</td>`;
+                            html += `<td class="ts-center" rowspan="${tasksArray.length}">${dDate}</td>`;
+                        }
+                        html += `<td class="ts-center">${t.start}</td>`;
+                        html += `<td class="ts-center">${t.end}</td>`;
+                        html += `<td class="ts-center font-bold">${t.hours.toFixed(1)}</td>`;
+                        html += `<td>${t.task}</td>`;
+                        html += `<td class="ts-center">${t.deck}</td>`;
+                        html += `<td class="ts-center">${t.roomId || '-'}</td>`;
+                        html += `</tr>`;
+                    });
+                }
+            });
 
-              <div class="ts-signs">
-                  <div class="ts-sign-box">
-                      <div class="ts-sign-line"></div>
-                      SUBCONTRACTOR SIGNATURE
-                  </div>
-                  <div class="ts-sign-box">
-                      <div class="ts-sign-line"></div>
-                      CH RESPONSIBLE SIGNATURE
-                  </div>
-              </div>
-          </div>
-          `;
-      });
+            html += `
+                        <tr class="ts-total">
+                            <td class="day-col">TOTAL</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="ts-center">${tech.totalHours.toFixed(1)}</td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
 
-      html += `</div>`;
-      
-      const opt = {
-        margin:       0.3,
-        filename:     `Karty_Pracy_Seavia_W${data.weekInfo.weekNumber}_${data.weekInfo.year}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        // Orientacja na 'landscape' (poziomo) i format A4
-        jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' } 
-      };
+                <div class="ts-signs">
+                    <div class="ts-sign-box">
+                        <div class="ts-sign-line"></div>
+                        SUBCONTRACTOR SIGNATURE
+                    </div>
+                    <div class="ts-sign-box">
+                        <div class="ts-sign-line"></div>
+                        CH RESPONSIBLE SIGNATURE
+                    </div>
+                </div>
+            </div>
+            `;
+        });
 
-      // Podajemy bezpośrednio string html, aby omijać problemy z ukrywaniem divów przez CSS
-      html2pdf().set(opt).from(html).save().then(() => {
-         btnElement.innerHTML = '<i class="fa-solid fa-users-viewfinder mr-2"></i> Karty Pracy Techników (PDF)';
-         btnElement.disabled = false;
-      });
+        html += `</div>`;
+        
+        const opt = {
+          margin:       0.3,
+          filename:     `Karty_Pracy_Seavia_W${data.weekInfo.weekNumber}_${data.weekInfo.year}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+          jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' } 
+        };
+
+        html2pdf().set(opt).from(html).save().then(() => {
+           btnElement.innerHTML = '<i class="fa-solid fa-users-viewfinder mr-2"></i> Karty Pracy Techników (PDF)';
+           btnElement.disabled = false;
+        });
+      }, 0);
   }
 
-  // --- FUNKCJE DLA RAPORTU POKŁADÓW (PIONOWEGO) ---
+  // --- RENDEROWANIE RAPORTU POKŁADÓW (WG DNI) ---
   function renderReport(data) {
     const container = document.getElementById('reportContainer');
     const content = document.getElementById('reportContent');
@@ -328,11 +356,11 @@
                 <td class="p-1 border-r border-slate-300 font-bold text-slate-700 leading-tight">${taskName}</td>`;
 
             let totalClass = total > 0 ? 'bg-green-200 text-green-900 font-black' : 'bg-slate-100 text-slate-400';
-            rowHtml += `<td class="p-1 border-r border-slate-300 text-center ${totalClass}">${total > 0 ? total : '0'}</td>`;
+            rowHtml += `<td class="p-1 border-r border-slate-300 text-center ${totalClass}">${total > 0 ? total.toFixed(1) : '0'}</td>`;
 
             hours.forEach((h, i) => {
                 let cellClass = h > 0 ? 'bg-green-100 text-green-800 font-black' : 'text-slate-300';
-                rowHtml += `<td class="p-1 ${i < 6 ? 'border-r' : ''} border-slate-300 text-center ${cellClass}">${h > 0 ? h : '0'}</td>`;
+                rowHtml += `<td class="p-1 ${i < 6 ? 'border-r' : ''} border-slate-300 text-center ${cellClass}">${h > 0 ? h.toFixed(1) : '0'}</td>`;
             });
 
             rowHtml += `</tr>`;
@@ -348,7 +376,10 @@
 
         let taskIndex = 1;
         filteredTasks.forEach(taskName => {
-            html += renderRow(taskName, taskIndex++);
+            // POPRAWKA: Pomiń "Supervision", bo już jest dodane na górze
+            if (taskName !== "Supervision") {
+              html += renderRow(taskName, taskIndex++);
+            }
         });
 
         html += `</tbody></table></div></div>`;
@@ -359,6 +390,96 @@
     container.classList.remove('hidden');
   }
 
+  // --- RENDEROWANIE RAPORTU CZASU WG TYGODNI ---
+  function renderTimeByWeekReport(data) {
+    const container = document.getElementById('reportContainer');
+    const content = document.getElementById('reportContent');
+
+    if (!data || Object.keys(data.decks).length === 0) {
+       content.innerHTML = '<div class="text-center text-slate-500 py-8 font-medium bg-slate-50 rounded-lg"><i class="fa-solid fa-folder-open text-3xl mb-3 block"></i>Brak zarejestrowanych prac w systemie.</div>';
+       container.classList.remove('hidden');
+       return;
+    }
+    
+    let allWeeksSorted = data.allWeeks.sort((a, b) => a - b);
+
+    let html = `
+      <div class="bg-white p-3 border border-slate-300 mb-8 w-max min-w-[320px]">
+         <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Szczegóły raportu</p>
+         <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+           <span class="font-bold text-slate-700">Project name:</span> <span class="text-right text-seaviaBlue font-bold">REV OCEAN 19577</span>
+           <span class="font-bold text-slate-700">Paid Breaks:</span> <span class="text-right ${data.settings.includeBreaks ? 'text-emerald-600' : 'text-slate-400'} font-bold">${data.settings.includeBreaks ? 'YES' : 'NO'}</span>
+           <span class="font-bold text-slate-700">Data generacji:</span> <span class="text-right font-mono">${new Date().toLocaleDateString('pl-PL')}</span>
+         </div>
+      </div>
+      <div class="flex flex-col gap-y-10" id="pdf-export-wrapper">
+    `;
+
+    Object.keys(data.decks).sort().forEach(deckName => {
+        let deckData = data.decks[deckName] || {};
+        
+        html += `
+        <div class="report-page w-full bg-white border border-slate-300 shadow-sm">
+            <div class="bg-slate-100 p-2 border-b border-slate-300">
+                <h3 class="font-black text-seaviaBlue text-[11px] uppercase tracking-wider">ANNUAL TIME REPORT - ${deckName}</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-[10px] sm:text-[11px]">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-600">
+                            <th class="p-1 border-b border-r border-slate-300 text-center w-8">No.</th>
+                            <th class="p-1 border-b border-r border-slate-300 min-w-[180px]">Tasks</th>
+                            <th class="p-1 border-b border-r border-slate-300 text-center w-12 font-bold bg-slate-200">Total</th>
+                            ${allWeeksSorted.map((week, i) => `<th class="p-1 border-b ${i < allWeeksSorted.length - 1 ? 'border-r' : ''} border-slate-300 text-center w-10">W${week}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        const renderRow = (taskName, index) => {
+            let taskData = deckData.tasks[taskName] || { total: 0, weeklyHours: {} };
+            let total = taskData.total;
+            
+            let rowHtml = `<tr class="border-b border-slate-200 hover:bg-blue-50/50">
+                <td class="p-1 border-r border-slate-300 text-center text-slate-500 font-medium">${index}</td>
+                <td class="p-1 border-r border-slate-300 font-bold text-slate-700 leading-tight">${taskName}</td>`;
+
+            let totalClass = total > 0 ? 'bg-green-200 text-green-900 font-black' : 'bg-slate-100 text-slate-400';
+            rowHtml += `<td class="p-1 border-r border-slate-300 text-center ${totalClass}">${total > 0 ? total.toFixed(1) : '0'}</td>`;
+
+            allWeeksSorted.forEach((weekNum, i) => {
+                let h = taskData.weeklyHours[weekNum] || 0;
+                let cellClass = h > 0 ? 'bg-green-100 text-green-800 font-black' : 'text-slate-300';
+                rowHtml += `<td class="p-1 ${i < allWeeksSorted.length - 1 ? 'border-r' : ''} border-slate-300 text-center ${cellClass}">${h > 0 ? h.toFixed(1) : '0'}</td>`;
+            });
+
+            rowHtml += `</tr>`;
+            return rowHtml;
+        };
+
+        html += renderRow("Supervision", 0);
+
+        let filteredTasks = data.allTasks;
+        if (!data.settings.includeBreaks) {
+            filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
+        }
+
+        let taskIndex = 1;
+        filteredTasks.forEach(taskName => {
+            if(taskName !== "Supervision") {
+              html += renderRow(taskName, taskIndex++);
+            }
+        });
+
+        html += `</tbody></table></div></div>`;
+    });
+
+    html += `</div>`;
+    content.innerHTML = html;
+    container.classList.remove('hidden');
+  }
+
+  // --- EKSPORT DO PDF ---
   function exportToPDF() {
     if (!currentReportData) return;
     if (typeof html2pdf === 'undefined') {
@@ -366,18 +487,54 @@
         return;
     }
     
-    const element = document.getElementById('reportContent'); 
-    const opt = {
-      margin:       0.3,
-      filename:     `Candido_Weekly_Report_${currentReportData.weekInfo.weekNumber}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' } 
-    };
+    window.scrollTo(0, 0);
 
-    html2pdf().set(opt).from(element).save();
+    setTimeout(() => {
+        const element = document.getElementById('reportContent');
+        const isWeekly = currentReportType === 'weekly';
+        
+        let pdfStyles = '';
+        if (!isWeekly) {
+          pdfStyles = `
+            <style id="pdf-styles">
+              .report-page { 
+                page-break-after: always; 
+              }
+              .report-page:last-child {
+                page-break-after: auto;
+              }
+              .report-page table {
+                font-size: 8px !important;
+              }
+              .report-page th, .report-page td {
+                padding: 1px 2px !important;
+              }
+            </style>
+          `;
+        }
+        
+        document.head.insertAdjacentHTML('beforeend', pdfStyles);
+
+        const weekNum = isWeekly ? currentReportData.weekInfo.weekNumber : 'Annual';
+        
+        const opt = {
+          margin:       0.3,
+          filename:     `Candido_Report_${weekNum}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true },
+          jsPDF:        { unit: 'in', format: 'a4', orientation: isWeekly ? 'portrait' : 'landscape' } 
+        };
+
+        html2pdf().set(opt).from(element).save().then(() => {
+          const styleTag = document.getElementById('pdf-styles');
+          if (styleTag) {
+            styleTag.remove();
+          }
+        });
+    }, 0);
   }
 
+  // --- EKSPORT DO EXCEL ---
   function exportToExcel() {
     if (!currentReportData) return;
     if (typeof XLSX === 'undefined') {
@@ -385,6 +542,14 @@
         return;
     }
 
+    if (currentReportType === 'weekly') {
+      exportWeeklyToExcel();
+    } else {
+      exportTimeByWeekToExcel();
+    }
+  }
+
+  function exportWeeklyToExcel() {
     const wb = XLSX.utils.book_new();
     const wsData = [];
 
@@ -405,7 +570,57 @@
         const addRow = (taskName, index) => {
             let hours = deckData[taskName] || [0,0,0,0,0,0,0];
             let total = hours.reduce((a,b)=>a+b,0);
-            wsData.push([index, taskName, total, ...hours]);
+            wsData.push([index, taskName, total, ...hours.map(h => h.toFixed(1))]);
+        };
+
+        addRow("Supervision", 0);
+        let taskIndex = 1;
+
+        let filteredTasks = currentReportData.allTasks;
+        if (!currentReportData.settings.includeBreaks) {
+            filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
+        }
+        
+        filteredTasks.forEach(taskName => {
+            if(taskName !== "Supervision") {
+              addRow(taskName, taskIndex++);
+            }
+        });
+        
+        wsData.push([]); 
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, "Weekly Report");
+    XLSX.writeFile(wb, `Candido_Weekly_Report_${currentReportData.weekInfo.weekNumber}.xlsx`);
+  }
+
+  function exportTimeByWeekToExcel() {
+    const wb = XLSX.utils.book_new();
+    const wsData = [];
+
+    wsData.push(["Project name:", "REV OCEAN 19577"]);
+    wsData.push(["Paid Breaks:", currentReportData.settings.includeBreaks ? "YES" : "NO"]);
+    wsData.push(["Data generacji:", new Date().toLocaleDateString('pl-PL')]);
+    wsData.push([]); 
+    
+    let allWeeksSorted = currentReportData.allWeeks.sort((a, b) => a - b);
+    const weekHeaders = allWeeksSorted.map(w => "W" + w);
+
+    Object.keys(currentReportData.decks).sort().forEach(deckName => {
+        let deckData = currentReportData.decks[deckName] || {};
+
+        wsData.push([`ANNUAL TIME REPORT - ${deckName}`]);
+        wsData.push(["No.", "Tasks", "Total", ...weekHeaders]);
+
+        const addRow = (taskName, index) => {
+            let taskData = deckData.tasks[taskName] || { total: 0, weeklyHours: {} };
+            let row = [index, taskName, taskData.total ? taskData.total.toFixed(1) : 0];
+            allWeeksSorted.forEach(weekNum => {
+                let hours = taskData.weeklyHours[weekNum] || 0;
+                row.push(hours > 0 ? hours.toFixed(1) : 0);
+            });
+            wsData.push(row);
         };
 
         addRow("Supervision", 0);
@@ -416,13 +631,18 @@
             filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
         }
 
-        filteredTasks.forEach(t => addRow(t, taskIndex++));
+        filteredTasks.forEach(t => {
+          if (t !== "Supervision") {
+            addRow(t, taskIndex++);
+          }
+        });
         
         wsData.push([]); 
     });
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
-    XLSX.utils.book_append_sheet(wb, ws, "Weekly Report");
-    XLSX.writeFile(wb, `Candido_Weekly_Report_${currentReportData.weekInfo.weekNumber}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Annual Time Report");
+    XLSX.writeFile(wb, `Candido_Annual_Time_Report.xlsx`);
   }
+
 </script>

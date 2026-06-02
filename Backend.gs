@@ -85,9 +85,9 @@ function getInitialData() {
       for (let i = 2; i < data.length; i++) {
         let deckVal = String(data[i][2] || "").trim(); // C
         if (deckVal === "" && String(data[i][1] || "").toLowerCase().includes("dk")) deckVal = String(data[i][1] || "").trim();
-        let areaVal = String(data[i][3] || "").trim(); // D
+        let areaVal = String(data[i][3] || "").trim(); // D - OBSZAR/AREA
         
-        let taskName = String(data[i][8] || "").trim(); // I
+        let taskName = String(data[i][8] || "").trim(); // I - NAZWA ZADANIA
         if (taskName === "") {
             let taskH = String(data[i][7] || "").trim();
             let taskJ = String(data[i][9] || "").trim();
@@ -157,9 +157,6 @@ function parseWorkTimeBackend(val) {
   return parseFloat(str) || 0;
 }
 
-/**
- * NOWE: Pobiera zadania dla tablicy techników (Dla pojedynczego lub całego teamu)
- */
 function getTasksForTechnicians(techNamesArray, dateStr) {
   let tasks = [];
   if (!techNamesArray || techNamesArray.length === 0 || !dateStr) return tasks;
@@ -174,7 +171,6 @@ function getTasksForTechnicians(techNamesArray, dateStr) {
   const data = sheetSpis.getRange(2, 1, lastRow - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, lastRow - 1, 1).getValues();
 
-  // Tablica znormalizowanych nazwisk do wyszukiwania
   const searchTechs = techNamesArray.map(t => String(t).trim().toLowerCase());
 
   for (let i = 0; i < data.length; i++) {
@@ -200,7 +196,6 @@ function getTasksForTechnicians(techNamesArray, dateStr) {
     }
   }
   
-  // Sortowanie najpierw po nazwisku technika, potem po godzinie
   tasks.sort((a, b) => {
     let nameCmp = a.techName.localeCompare(b.techName);
     if (nameCmp !== 0) return nameCmp;
@@ -325,10 +320,6 @@ function parseDateToYMD(val) {
   return null;
 }
 
-/**
- * NOWE: Akceptuje tablicę techniciansArray zamiast pojedynczego stringa
- * ORAZ: Obsługuje dodawanie nowych wierszy (Extra Work) do zakładki Candido
- */
 function submitWorkReport(formData) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -336,37 +327,31 @@ function submitWorkReport(formData) {
     
     const sheetCandido = ss.getSheetByName('Candido');
     
-    // 1. OBSŁUGA ZAKŁADKI CANDIDO (Aktualizacja lub Nowe Zadanie)
     if (formData.isCustomTask) {
       if (sheetCandido) {
         idPrac = formData.customTaskId || "Dodatkowe";
         
-        // Zmiana formatu daty z YYYY-MM-DD (HTML) na MM/DD/YYYY (Dla Candido)
         let formattedDate = formData.workDate;
         let dParts = formData.workDate.split('-');
         if (dParts.length === 3) {
            formattedDate = `${dParts[1]}/${dParts[2]}/${dParts[0]}`; 
         }
 
-        // Tworzymy pusty wiersz (16 kolumn od A do P)
         let newRow = new Array(16).fill("");
-        // Wypełniamy odpowiednie kolumny (indeksy tablicy liczone od 0)
-        newRow[2] = formData.deck;             // C - Pokład
-        newRow[3] = formData.area;             // D - Strefa
-        newRow[5] = idPrac;                    // F - ID prac
-        newRow[7] = "Seavia";                  // H - Wykonawca
-        newRow[8] = formData.taskName;         // I - Nazwa prac
-        newRow[9] = formattedDate;             // J - Start prac
-        newRow[12] = formattedDate;            // M - Koniec prac
+        newRow[2] = formData.deck;
+        newRow[3] = formData.area;
+        newRow[5] = idPrac;
+        newRow[7] = "Seavia";
+        newRow[8] = formData.taskName;
+        newRow[9] = formattedDate;
+        newRow[12] = formattedDate;
         if (formData.progress) {
-          newRow[15] = formData.progress + "%"; // P - Postęp
+          newRow[15] = formData.progress + "%";
         }
         
-        // Dodajemy wiersz na sam dół zakładki Candido
         sheetCandido.appendRow(newRow);
       }
     } else {
-      // Stara logika dla istniejących zadań
       if (formData.taskRow) {
         if (sheetCandido) {
           idPrac = sheetCandido.getRange(parseInt(formData.taskRow), 6).getValue();
@@ -379,7 +364,6 @@ function submitWorkReport(formData) {
       }
     }
 
-    // 2. REJESTRACJA W SPISIE WYKONANYCH PRAC
     let sheetSpis = ss.getSheetByName('Spis wykonanych prac');
     if (!sheetSpis) sheetSpis = ss.insertSheet('Spis wykonanych prac');
     
@@ -388,7 +372,6 @@ function submitWorkReport(formData) {
       sheetSpis.getRange(1, 1, 1, 8).setFontWeight("bold");
     }
     
-    // Zabezpieczenie przed brakiem tablicy
     let techsArray = formData.techniciansArray;
     if (!techsArray || !Array.isArray(techsArray)) {
       return { success: false, message: "Brak techników do przypisania." };
@@ -415,7 +398,7 @@ function submitWorkReport(formData) {
 }
 
 // -------------------------------------------------------------
-// NOWE: MODUŁ RAPORTÓW CANDIDO (ROZLICZENIA DLA KLIENTA)
+// MODUŁ RAPORTÓW CANDIDO (ROZLICZENIA DLA KLIENTA)
 // -------------------------------------------------------------
 
 function getCandidoWeeklyReport(dateStr, includeBreaks) {
@@ -425,14 +408,12 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return { decks: {}, weekInfo: {} };
 
-  // 1. Obliczanie zakresu tygodnia (Pon-Nd) na bazie wybranej daty
   let selectedDate = new Date(dateStr);
   let dayOfWeek = selectedDate.getDay(); 
-  // Przesunięcie do poniedziałku (w JS Niedziela to 0, więc dla nd różnica to -6)
   let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
   
   let monday = new Date(selectedDate.setDate(diff));
-  let weekDates = []; // Przechowujemy daty od Pon(0) do Nd(6) w formacie "YYYY-MM-DD"
+  let weekDates = [];
   
   for (let i = 0; i < 7; i++) {
     let d = new Date(monday);
@@ -440,8 +421,6 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
     weekDates.push(parseDateToYMD(d));
   }
 
-  // W Google Sheets funkcja ISOWEEKNUM() daje numer tygodnia wg normy EU.
-  // Tu na szybko obliczamy numer tygodnia w JS dla podglądu (przybliżony ISO)
   let target = new Date(monday.valueOf());
   let dayNr = (monday.getDay() + 6) % 7;
   target.setDate(target.getDate() - dayNr + 3);
@@ -465,15 +444,12 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
 
   let uniqueTasks = new Set();
 
-  // NOWE: Pobieranie WSZYSTKICH unikalnych zadań z zakładki Candido (Kolumna I to indeks 9)
   const sheetCandido = ss.getSheetByName('Candido');
   if (sheetCandido && sheetCandido.getLastRow() >= 3) {
     const candidoTasks = sheetCandido.getRange(3, 9, sheetCandido.getLastRow() - 2, 1).getValues();
     candidoTasks.forEach(row => {
       let t = String(row[0]).trim();
-      let lowerT = t.toLowerCase();
-      // Odrzucamy zadania nadzorcze (trafi to do wiersza 0 - Supervision) oraz puste komórki
-      if (t && !lowerT.includes("site manager") && !lowerT.includes("meetings") && lowerT !== "supervision") {
+      if (t) {
         uniqueTasks.add(t);
       }
     });
@@ -517,14 +493,17 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
       
       reportData.decks[rowDeck].tasks[rowTask][dayIndex] += duration;
       
-      if (rowTask !== "Supervision") {
+      // Dodajemy zadania z godzinami, jeśli nie ma ich na głównej liście (np. Supervision)
+      if (rowTask === "Supervision" || !Array.from(uniqueTasks).find(t => t.toLowerCase() === rowTask.toLowerCase())) {
          uniqueTasks.add(rowTask);
       }
     }
   }
 
-  // Sortowanie alfabetyczne pełnej listy zadań
   reportData.allTasks = Array.from(uniqueTasks).sort((a, b) => a.localeCompare(b));
+  // Odrzucamy zadania, które nie są Supervision i nie pochodzą z Candido
+  let candidoTasksLower = Array.from(uniqueTasks).map(t=>t.toLowerCase());
+  reportData.allTasks = reportData.allTasks.filter(t => t === "Supervision" || candidoTasksLower.includes(t.toLowerCase()));
 
   Object.keys(reportData.decks).forEach(d => {
      Object.keys(reportData.decks[d].tasks).forEach(t => {
@@ -535,9 +514,116 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
   return reportData;
 }
 
+
 /**
- * NOWE: Generuje zbiorcze dane dla indywidualnych kart pracy (Timesheet) techników na dany tydzień.
+ * POPRAWIONA FUNKCJA: Generuje raport czasu pracy w podziale na tygodnie dla całego projektu.
  */
+function getTimeByWeekReport(includeBreaks) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
+  if (!sheetSpis || sheetSpis.getLastRow() < 2) return { decks: {}, allTasks: [], allWeeks: [] };
+
+  // 1. Zbuduj główną listę zadań z zakładki Candido, kolumna I
+  const projectTasks = new Set();
+  const sheetCandido = ss.getSheetByName('Candido');
+  if (sheetCandido && sheetCandido.getLastRow() >= 3) {
+    // Pobieramy dane z kolumny I (indeks 9)
+    const candidoTasks = sheetCandido.getRange(3, 9, sheetCandido.getLastRow() - 2, 1).getValues();
+    candidoTasks.forEach(row => {
+      const taskName = String(row[0]).trim();
+      if (taskName) {
+        projectTasks.add(taskName);
+      }
+    });
+  }
+
+  let reportData = {
+    settings: { includeBreaks: includeBreaks },
+    decks: {},
+    allTasks: projectTasks, // Używamy seta z Candido jako bazę
+    allWeeks: new Set()
+  };
+
+  const spisData = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 8).getDisplayValues();
+  const rawDates = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 1).getValues();
+
+  // Funkcja pomocnicza do obliczania numeru tygodnia ISO
+  const getWeekNumber = (d) => {
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return weekNo;
+  };
+
+  // 2. Przetwórz godziny z arkusza 'Spis wykonanych prac'
+  for (let i = 0; i < spisData.length; i++) {
+    let rowDate = rawDates[i][0];
+    if (!(rowDate instanceof Date)) continue;
+
+    let weekNum = getWeekNumber(rowDate);
+
+    let rowStart = spisData[i][1];
+    let rowEnd = spisData[i][2];
+    let rowDeck = String(spisData[i][3]).trim();
+    let rowTask = String(spisData[i][5]).trim();
+    let isCancelled = rowTask.includes("[ANULOWANE]");
+    
+    let isBreak = rowTask.toLowerCase().includes("przerwa") || rowTask.toLowerCase().includes("break");
+    if (isBreak && !includeBreaks) continue;
+
+    if (!rowStart || !rowEnd || isCancelled || !rowDeck || !rowTask) continue;
+
+    if (rowTask.toLowerCase().includes("site manager") || rowTask.toLowerCase().includes("meetings") || rowTask.toLowerCase() === "supervision") {
+       rowTask = "Supervision";
+    }
+
+    let duration = parseWorkTimeBackend(rowEnd) - parseWorkTimeBackend(rowStart);
+    if (duration < 0) duration += 24;
+    
+    if (duration > 0) {
+      if (!reportData.decks[rowDeck]) {
+         reportData.decks[rowDeck] = { tasks: {} };
+      }
+      
+      if (!reportData.decks[rowDeck].tasks[rowTask]) {
+         reportData.decks[rowDeck].tasks[rowTask] = { total: 0, weeklyHours: {} };
+      }
+
+      if (!reportData.decks[rowDeck].tasks[rowTask].weeklyHours[weekNum]) {
+        reportData.decks[rowDeck].tasks[rowTask].weeklyHours[weekNum] = 0;
+      }
+
+      reportData.decks[rowDeck].tasks[rowTask].weeklyHours[weekNum] += duration;
+      reportData.decks[rowDeck].tasks[rowTask].total += duration;
+      
+      // Dodaj zadania specjalne (np. Supervision) do głównej listy, jeśli ich tam nie ma
+      if(rowTask === "Supervision") {
+        reportData.allTasks.add(rowTask);
+      }
+      reportData.allWeeks.add(weekNum);
+    }
+  }
+
+  // 3. Przekonwertuj Sety na posortowane tablice
+  reportData.allTasks = Array.from(reportData.allTasks).sort((a, b) => a.localeCompare(b));
+  reportData.allWeeks = Array.from(reportData.allWeeks);
+
+  // Zaokrąglij godziny
+  Object.keys(reportData.decks).forEach(d => {
+     Object.keys(reportData.decks[d].tasks).forEach(t => {
+       let task = reportData.decks[d].tasks[t];
+       task.total = Math.round(task.total * 10) / 10;
+       Object.keys(task.weeklyHours).forEach(w => {
+         task.weeklyHours[w] = Math.round(task.weeklyHours[w] * 10) / 10;
+       });
+     });
+  });
+
+  return reportData;
+}
+
+
 function getTechnicianWeeklyReports(dateStr, includeBreaks) {
   if (!dateStr) return null;
   
@@ -545,7 +631,6 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return null;
 
-  // 1. Obliczanie zakresu tygodnia (Pon-Nd)
   let selectedDate = new Date(dateStr);
   let dayOfWeek = selectedDate.getDay(); 
   let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
@@ -559,7 +644,6 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
     weekDates.push(parseDateToYMD(d));
   }
 
-  // Numer tygodnia i rok (ISO)
   let target = new Date(monday.valueOf());
   let dayNr = (monday.getDay() + 6) % 7;
   target.setDate(target.getDate() - dayNr + 3);
@@ -592,7 +676,7 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
     let rowDeck = String(spisData[i][3]).trim();
     let rowArea = String(spisData[i][4]).trim();
     let rowTask = String(spisData[i][5]).trim();
-    let rowRoomId = String(spisData[i][6]).trim(); // DODANO: Pobieranie ID Prac (Activity ID z Candido kol. F)
+    let rowRoomId = String(spisData[i][6]).trim();
     let techName = String(spisData[i][7]).trim();
     let isCancelled = rowTask.includes("[ANULOWANE]");
     
@@ -606,7 +690,6 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
     
     if (duration > 0) {
       if (!reportData.technicians[techName]) {
-         // Tworzymy pustą tablicę dla 7 dni tygodnia
          reportData.technicians[techName] = { 
              totalHours: 0, 
              days: [[], [], [], [], [], [], []] 
@@ -620,7 +703,7 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
          task: rowTask,
          deck: rowDeck,
          area: rowArea,
-         roomId: rowRoomId // DODANO: Przekazywanie Activity ID do PDF
+         roomId: rowRoomId
       });
       
       reportData.technicians[techName].totalHours += duration;

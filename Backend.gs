@@ -24,7 +24,7 @@ function include(filename) {
 
 function getInitialData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
+
   let technicians = [];
   let techniciansDetails = [];
   let techStats = { total: 0, active: 0 };
@@ -68,7 +68,7 @@ function getInitialData() {
           let key = deck + "_" + taskName;
           if(!workedHoursByTask[key]) workedHoursByTask[key] = 0;
           workedHoursByTask[key] += duration;
-          
+
           let techObj = techniciansDetails.find(t => t.name.toLowerCase() === techNameFromSpis.toLowerCase());
           if (techObj) {
             techObj.totalHours += duration;
@@ -99,7 +99,7 @@ function getInitialData() {
             if (taskH !== "" && !taskH.toLowerCase().includes("seavia")) taskName = taskH;
             else if (taskJ !== "") taskName = taskJ;
         }
-        
+
         let plannedStart = data[i][9];
         let plannedEnd = data[i][12];
         let plannedDays = 1;
@@ -115,19 +115,19 @@ function getInitialData() {
         } else if (typeof rawProgress === 'string') {
           progressNum = parseInt(rawProgress.replace('%', '').trim()) || 0;
         }
-        
+
         if (deckVal !== "") {
           currentDeck = deckVal; currentArea = ""; 
           if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {};
         }
         if (areaVal !== "") currentArea = areaVal;
-        
+
         if (currentDeck === "" || taskName === "") continue;
         let area = currentArea === "" ? "Brak strefy" : currentArea;
 
         if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {}; 
         if (!tasksTree[currentDeck][area]) tasksTree[currentDeck][area] = [];
-        
+
         let key = currentDeck + "_" + taskName;
         let taskHours = workedHoursByTask[key] || 0;
 
@@ -193,13 +193,13 @@ function getTasksForTechnicians(techNamesArray, dateStr) {
       });
     }
   }
-  
+
   tasks.sort((a, b) => {
     let nameCmp = a.techName.localeCompare(b.techName);
     if (nameCmp !== 0) return nameCmp;
     return a.start.localeCompare(b.start);
   });
-  
+
   return tasks;
 }
 
@@ -230,10 +230,10 @@ function addTechnician(name) {
     const techName = name.trim();
     const dataSheet = ss.getSheetByName('Data sheet');
     if (!dataSheet) return { success: false, message: "Błąd: Brak zakładki 'Data sheet' w arkuszu." };
-    
+
     const lastRow = dataSheet.getLastRow();
     let added = false;
-    
+
     if (lastRow >= 9) {
       const values = dataSheet.getRange("B9:B").getValues();
       for (let i = 0; i < values.length; i++) {
@@ -320,27 +320,71 @@ function submitWorkReport(formData) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let idPrac = "";
+    let isDuplicate = false;
     const sheetCandido = ss.getSheetByName('Candido');
     if (formData.isCustomTask) {
       if (sheetCandido) {
-        idPrac = formData.customTaskId || "Dodatkowe";
-        let formattedDate = formData.workDate;
-        let dParts = formData.workDate.split('-');
-        if (dParts.length === 3) {
-           formattedDate = `${dParts[1]}/${dParts[2]}/${dParts[0]}`; 
+        // AUTOMATYZACJA: Dodawanie dopisku " - Extra Job" do ręcznie wpisanego ID prac
+        let customId = formData.customTaskId ? String(formData.customTaskId).trim() : "";
+        if (customId) {
+          if (!customId.endsWith(" - Extra Job")) {
+            idPrac = customId + " - Extra Job";
+          } else {
+            idPrac = customId;
+          }
+        } else {
+          idPrac = "Extra Job";
         }
-        let newRow = new Array(16).fill("");
-        newRow[2] = formData.deck;
-        newRow[3] = formData.area;
-        newRow[5] = idPrac;
-        newRow[7] = "Seavia";
-        newRow[8] = formData.taskName;
-        newRow[9] = formattedDate;
-        newRow[12] = formattedDate;
-        if (formData.progress) {
-          newRow[15] = formData.progress + "%";
+
+        // Sprawdzamy, czy zadanie o tym ID już istnieje na wybranym pokładzie
+        let duplicateRow = -1;
+        const lastRow = sheetCandido.getLastRow();
+        if (lastRow >= 3) {
+          const candidoData = sheetCandido.getRange(1, 1, lastRow, 16).getValues();
+          let currentDeck = "";
+          for (let r = 2; r < candidoData.length; r++) {
+            let deckVal = String(candidoData[r][2] || "").trim();
+            if (deckVal === "" && String(candidoData[r][1] || "").toLowerCase().includes("dk")) {
+              deckVal = String(candidoData[r][1] || "").trim();
+            }
+            if (deckVal !== "") {
+              currentDeck = deckVal;
+            }
+            
+            let rowIdPrac = String(candidoData[r][5] || "").trim();
+            if (currentDeck.toLowerCase() === formData.deck.toLowerCase() && rowIdPrac.toLowerCase() === idPrac.toLowerCase()) {
+              duplicateRow = r + 1; // 1-based index w arkuszu
+              break;
+            }
+          }
         }
-        sheetCandido.appendRow(newRow);
+
+        if (duplicateRow !== -1) {
+          // Zadanie już istnieje! Aktualizujemy postęp na istniejącym wierszu i nie dodajemy duplikatu
+          isDuplicate = true;
+          if (formData.progress) {
+            sheetCandido.getRange(duplicateRow, 16).setValue(formData.progress + "%");
+          }
+        } else {
+          // Zadanie nie istnieje, dodajemy je do Candido
+          let formattedDate = formData.workDate;
+          let dParts = formData.workDate.split('-');
+          if (dParts.length === 3) {
+             formattedDate = `${dParts[1]}/${dParts[2]}/${dParts[0]}`; 
+          }
+          let newRow = new Array(16).fill("");
+          newRow[2] = formData.deck;
+          newRow[3] = formData.area;
+          newRow[5] = idPrac;
+          newRow[7] = "Seavia";
+          newRow[8] = formData.taskName;
+          newRow[9] = formattedDate;
+          newRow[12] = formattedDate;
+          if (formData.progress) {
+            newRow[15] = formData.progress + "%";
+          }
+          sheetCandido.appendRow(newRow);
+        }
       }
     } else {
       if (formData.taskRow) {
@@ -359,11 +403,11 @@ function submitWorkReport(formData) {
       sheetSpis.appendRow(["Data", "Godzina rozpoczęcia pracy", "Godzina zakończenia pracy", "Pokład", "Typ prac", "Nazwa prac", "ID prac", "Technik"]);
       sheetSpis.getRange(1, 1, 1, 8).setFontWeight("bold");
     }
-    let techsArray = formData.techniciansArray;
-    if (!techsArray || !Array.isArray(techsArray)) {
+    let snowyTechs = formData.techniciansArray;
+    if (!snowyTechs || !Array.isArray(snowyTechs)) {
       return { success: false, message: "Brak techników do przypisania." };
     }
-    techsArray.forEach(tech => {
+    snowyTechs.forEach(tech => {
        sheetSpis.appendRow([
          formData.workDate, 
          formData.timeStart, 
@@ -375,8 +419,9 @@ function submitWorkReport(formData) {
          tech
        ]);
     });
-    let msgSuffix = techsArray.length > 1 ? ` (Dla ${techsArray.length} techników)` : '';
-    return { success: true, message: `Pomyślnie zapisano godziny i postęp zadania!${msgSuffix}` };
+    let msgSuffix = snowyTechs.length > 1 ? ` (Dla ${snowyTechs.length} techników)` : '';
+    let duplicateNote = isDuplicate ? " (Zadanie z tym ID już istniało na tym pokładzie, godziny dopisano do istniejącego zadania)" : "";
+    return { success: true, message: `Pomyślnie zapisano godziny i postęp zadania!${duplicateNote}${msgSuffix}` };
   } catch (error) {
     return { success: false, message: "Błąd podczas zapisu: " + error.toString() };
   }
@@ -390,6 +435,7 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return { decks: {}, weekInfo: {} };
+
   let selectedDate = new Date(dateStr);
   let dayOfWeek = selectedDate.getDay(); 
   let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
@@ -409,7 +455,7 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
       target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
   }
   let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
-  
+
   let reportData = {
     settings: { includeBreaks: includeBreaks },
     weekInfo: {
@@ -420,6 +466,7 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
     decks: {},
     allTasks: []
   };
+
   let uniqueTasks = new Set();
   const sheetCandido = ss.getSheetByName('Candido');
   if (sheetCandido && sheetCandido.getLastRow() >= 3) {
@@ -596,13 +643,13 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
     let rowRoomId = String(spisData[i][6]).trim();
     let techName = String(spisData[i][7]).trim();
     let isCancelled = rowTask.includes("[ANULOWANE]");
-    
+
     let isBreak = rowTask.toLowerCase().includes("przerwa") || rowTask.toLowerCase().includes("break") || rowTask.toLowerCase().includes("brake");
     if (isBreak && !includeBreaks) continue;
     if (!rowStart || !rowEnd || isCancelled || !techName || !rowTask) continue;
     let duration = parseWorkTimeBackend(rowEnd) - parseWorkTimeBackend(rowStart);
     if (duration < 0) duration += 24; 
-    
+
     if (duration > 0) {
       if (!reportData.technicians[techName]) {
          reportData.technicians[techName] = { 
@@ -632,23 +679,27 @@ function generateStyledExcelReport(reportData, reportType) {
     const baseName = `Candido_${isWeekly ? reportData.weekInfo.weekNumber : 'Annual'}_Report`;
     const tempFileName = `${baseName}_TEMP_${Date.now()}`;
     const targetFolder = DriveApp.getFolderById(TARGET_FOLDER_ID);
-    
+
     // 1. Tworzymy tymczasowy Arkusz Google bezpośrednio w folderze docelowym
     const spreadsheet = SpreadsheetApp.create(tempFileName);
     const tempFile = DriveApp.getFileById(spreadsheet.getId());
     tempFile.moveTo(targetFolder);
     const sheet = spreadsheet.getSheets()[0];
     sheet.setName(isWeekly ? "Weekly Report" : "Annual Report");
+
     const headerColor = "#f1f5f9";
     const totalHeaderColor = "#e2e8f0";
     const seaviaBlue = "#0f3460";
     const lightGreen = "#dcfce7";
     const green = "#bbf7d0";
     const borderColor = "#cbd5e1";
+
     let currentRow = 1;
+
     sheet.getRange(currentRow, 1, 1, 2).setValues([["Project name:", "REV OCEAN 19577"]]).setFontWeight("bold");
     sheet.getRange(currentRow, 2).setFontColor(seaviaBlue).setHorizontalAlignment("right");
     currentRow++;
+
     if (isWeekly) {
       sheet.getRange(currentRow, 1, 1, 2).setValues([["Week no.:", reportData.weekInfo.weekNumber]]).setFontWeight("bold");
       sheet.getRange(currentRow, 2).setFontColor(seaviaBlue).setHorizontalAlignment("right");
@@ -661,14 +712,18 @@ function generateStyledExcelReport(reportData, reportType) {
       sheet.getRange(currentRow, 2).setHorizontalAlignment("right");
       currentRow++;
     }
+
     sheet.getRange(currentRow, 1, 1, 2).setValues([["Paid Breaks:", reportData.settings.includeBreaks ? "YES" : "NO"]]).setFontWeight("bold");
     sheet.getRange(currentRow, 2).setFontColor(reportData.settings.includeBreaks ? "#166534" : "#94a3b8").setHorizontalAlignment("right");
     currentRow += 2;
+
     Object.keys(reportData.decks).sort().forEach(deckName => {
       let deckData = reportData.decks[deckName];
       if (!deckData.tasks || Object.keys(deckData.tasks).length === 0) return;
+
       sheet.getRange(currentRow, 1).setValue(isWeekly ? `WEEKLY SUM ${deckName}` : `ANNUAL TIME REPORT - ${deckName}`).setFontWeight("bold").setFontColor(seaviaBlue);
       currentRow++;
+
       let headers = ["No.", "Tasks", "Total"];
       let columnCount;
       if (isWeekly) {
@@ -679,12 +734,14 @@ function generateStyledExcelReport(reportData, reportType) {
         sortedWeeks.forEach(w => headers.push(`W${w}`));
         columnCount = 3 + sortedWeeks.length;
       }
+
       if (columnCount > 0) {
         let headerRange = sheet.getRange(currentRow, 1, 1, columnCount);
         headerRange.setValues([headers]).setBackground(headerColor).setFontWeight("bold");
         sheet.getRange(currentRow, 3).setBackground(totalHeaderColor);
       }
       currentRow++;
+
       const renderRow = (taskName, index) => {
         let rowData = [index, taskName];
         if (isWeekly) {
@@ -700,6 +757,7 @@ function generateStyledExcelReport(reportData, reportType) {
             rowData.push(h > 0 ? h : 0);
           });
         }
+
         if (rowData.length > 2) {
           sheet.getRange(currentRow, 1, 1, rowData.length).setValues([rowData]).setNumberFormat("0.0");
           sheet.getRange(currentRow, 1, 1, 2).setNumberFormat("0");
@@ -713,9 +771,10 @@ function generateStyledExcelReport(reportData, reportType) {
         }
         currentRow++;
       };
-      
+
       // ZADANIE SUPERVISION JEST RENDEROWANE ZAWSZE NA SAMEJ GÓRZE (POZYCJA 0)
       renderRow("Supervision", 0);
+
       let taskIndex = 1;
       let filteredTasks = reportData.allTasks;
       if (!reportData.settings.includeBreaks) {
@@ -727,8 +786,9 @@ function generateStyledExcelReport(reportData, reportType) {
           renderRow(taskName, taskIndex++);
         }
       });
+
       // Wyliczamy faktyczną liczbę wygenerowanych wierszy danych na tym pokładzie
-      let renderedRowCount = taskIndex;
+      let renderedRowCount = taskIndex; 
       if (renderedRowCount > 0) {
         let tableStartRow = currentRow - renderedRowCount - 1; // Wracamy do wiersza nagłówka
         let numRows = renderedRowCount + 1; // headers + wiersze danych
@@ -737,13 +797,14 @@ function generateStyledExcelReport(reportData, reportType) {
           tableRange.setBorder(true, true, true, true, true, true, borderColor, SpreadsheetApp.BorderStyle.SOLID);
         }
       }
+
       sheet.setColumnWidth(2, 250);
       currentRow += 2;
     });
-    
+
     // Wymuszamy natychmiastowe zrzucenie stylów i danych do arkusza Google Sheets przed konwersją
     SpreadsheetApp.flush();
-    
+
     // 2. Eksport pliku do formatu Excel (.xlsx) za pomocą wewnętrznego API Google
     const url = "https://docs.google.com/spreadsheets/d/" + spreadsheet.getId() + "/export?format=xlsx";
     const token = ScriptApp.getOAuthToken();
@@ -757,13 +818,13 @@ function generateStyledExcelReport(reportData, reportType) {
       throw new Error("Błąd podczas konwersji arkusza do formatu Excel (.xlsx): " + response.getContentText());
     }
     const excelBlob = response.getBlob().setName(`${baseName}.xlsx`);
-    
+
     // 3. Zapisujemy ostateczny plik Excel (.xlsx) w Twoim docelowym folderze na Google Drive
     const excelFile = targetFolder.createFile(excelBlob);
-    
+
     // 4. Usuwamy tymczasowy Arkusz Google Sheets, aby nie zaśmiecać folderu
     tempFile.setTrashed(true);
-    
+
     // 5. Zwracamy bezpośredni link do pobrania pliku Excel (.xlsx) z Dysku Google
     const downloadUrl = `https://drive.google.com/uc?export=download&id=${excelFile.getId()}`;
     return {
@@ -787,7 +848,7 @@ function updateTeamName(oldTeamName, newTeamName) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const dataSheet = ss.getSheetByName('Data sheet');
     if (!dataSheet) return { success: false, message: "Brak zakładki 'Data sheet'." };
-    
+
     const lastRow = dataSheet.getLastRow();
     let updatedCount = 0;
     if (lastRow >= 9) {
@@ -817,7 +878,7 @@ function deleteTeam(teamName) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const dataSheet = ss.getSheetByName('Data sheet');
     if (!dataSheet) return { success: false, message: "Brak zakładki 'Data sheet'." };
-    
+
     const lastRow = dataSheet.getLastRow();
     let updatedCount = 0;
     if (lastRow >= 9) {

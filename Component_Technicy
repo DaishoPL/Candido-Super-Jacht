@@ -1,5 +1,5 @@
 <div class="bg-white rounded-lg shadow-sm p-4 md:p-8 border border-gray-100 animate-fade-in">
-  
+
   <!-- Nagłówek i przyciski akcji -->
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
     <div>
@@ -25,7 +25,7 @@
       <i class="fa-solid fa-layer-group mr-2"></i> Zespoły
     </button>
   </div>
-  
+
   <!-- ============================================== -->
   <!-- WIDOK 1: KLASYCZNA TABELA (Dla małych projektów) -->
   <!-- ============================================== -->
@@ -60,17 +60,60 @@
     <div id="teamsAccordionContainer"></div>
   </div>
 
+  <!-- ============================================== -->
+  <!-- MODAL: DODAWANIE NOWEGO ZESPOŁU (Z WYBOREM CZŁONKA) -->
+  <!-- ============================================== -->
+  <div id="addTeamModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+    <div class="bg-white rounded-lg shadow-lg border border-slate-200 max-w-md w-full mx-4 overflow-hidden">
+      <!-- Nagłówek modala -->
+      <div class="bg-slate-50 px-6 py-4 border-b border-slate-150 flex justify-between items-center">
+        <h3 class="font-bold text-slate-800 text-lg flex items-center">
+          <i class="fa-solid fa-users-rectangle mr-2 text-seaviaBlue"></i> Utwórz nowy zespół
+        </h3>
+        <button onclick="closeAddTeamModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <!-- Zawartość modala -->
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nazwa zespołu</label>
+          <input type="text" id="modalTeamName" placeholder="np. Team 3, Malarze" class="w-full border border-slate-300 rounded-md p-2.5 bg-white text-slate-700 font-medium focus:ring-2 focus:ring-seaviaBlue focus:outline-none transition-all">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Wybierz pierwszego technika (Tylko aktywni)</label>
+          <select id="modalTeamTechnician" class="w-full border border-slate-300 rounded-md p-2.5 bg-white text-slate-700 font-medium focus:ring-2 focus:ring-seaviaBlue focus:outline-none transition-all">
+            <option value="">-- Wybierz członka zespołu --</option>
+          </select>
+          <p class="text-[11px] text-slate-400 mt-2 leading-relaxed">
+            <i class="fa-solid fa-info-circle mr-1"></i> Aby zespół zapisał się na stałe w bazie, musisz od razu przypisać do niego przynajmniej jednego aktywnego technika.
+          </p>
+        </div>
+      </div>
+      <!-- Przyciski akcji -->
+      <div class="bg-slate-50 px-6 py-4 border-t border-slate-150 flex justify-end gap-3">
+        <button onclick="closeAddTeamModal()" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-2 px-4 rounded-md text-sm shadow-sm transition-all">
+          Anuluj
+        </button>
+        <button onclick="submitAddTeamModal()" class="bg-seaviaBlue hover:bg-[#0a1e38] text-white font-bold py-2 px-4 rounded-md text-sm shadow-sm transition-all flex items-center">
+          <i class="fa-solid fa-check mr-1.5"></i> Utwórz i przypisz
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
   // Zmienne do zapamiętania stanu interfejsu
   let openTeamIds = new Set();
-  let currentTechView = 'table'; 
+  let currentTechView = 'table';
+  let globalTechniciansDetails = []; // Przechowywanie pobranych danych techników do obsługi modali
 
   // Przełączanie między Tabelą a Kontenerami
   function switchTechView(view) {
     currentTechView = view;
-    
+
     const viewTable = document.getElementById('view-table');
     const viewAccordion = document.getElementById('view-accordion');
     const btnTable = document.getElementById('btnViewTable');
@@ -79,13 +122,13 @@
     if (view === 'table') {
       viewTable.classList.remove('hidden'); viewTable.classList.add('block');
       viewAccordion.classList.remove('block'); viewAccordion.classList.add('hidden');
-      
+
       btnTable.className = "px-5 py-2 text-sm font-bold rounded-md bg-white text-seaviaBlue shadow-sm transition-all flex items-center";
       btnAccordion.className = "px-5 py-2 text-sm font-bold rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all flex items-center";
     } else {
       viewAccordion.classList.remove('hidden'); viewAccordion.classList.add('block');
       viewTable.classList.remove('block'); viewTable.classList.add('hidden');
-      
+
       btnAccordion.className = "px-5 py-2 text-sm font-bold rounded-md bg-white text-seaviaBlue shadow-sm transition-all flex items-center";
       btnTable.className = "px-5 py-2 text-sm font-bold rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-all flex items-center";
     }
@@ -94,7 +137,7 @@
   function toggleTeam(teamId) {
     const bodyEl = document.getElementById('body-' + teamId);
     const iconEl = document.getElementById('icon-' + teamId);
-    
+
     if (bodyEl.classList.contains('hidden')) {
       bodyEl.classList.remove('hidden');
       iconEl.classList.add('rotate-180');
@@ -110,14 +153,17 @@
   function renderTechnicians(data) {
     const tbodyTable = document.getElementById('techTableBody');
     const containerAccordion = document.getElementById('teamsAccordionContainer');
-    
+
     if (!tbodyTable || !containerAccordion) return;
-    
+
     if (!data || !data.techniciansDetails || data.techniciansDetails.length === 0) {
        tbodyTable.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-500 font-medium">Brak danych o technikach w bazie.</td></tr>';
        containerAccordion.innerHTML = '<div class="p-8 text-center text-slate-500 font-medium bg-slate-50 rounded-lg border border-dashed border-slate-300">Brak danych o technikach.</div>';
        return;
     }
+
+    // Zapamiętanie listy techników w zmiennej globalnej
+    globalTechniciansDetails = data.techniciansDetails;
 
     // 1. Unikalne zespoły (do Selectów)
     const allTeams = [...new Set(data.techniciansDetails.map(t => t.team).filter(t => t && t !== ''))].sort();
@@ -129,45 +175,45 @@
     // GENEROWANIE WIDOKU 1: TABELI
     // ==============================================
     let tableData = [...data.techniciansDetails].sort((a, b) => a.name.localeCompare(b.name));
-    
+
     tableData.forEach(tech => {
-       let isActive = (tech.status === 'aktywny' || tech.status === 'active');
-       let statusColor = isActive ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-500 bg-slate-50 border-slate-200';
-       let statusDot = isActive ? 'text-emerald-500' : 'text-slate-400';
-       let newStatusToSet = isActive ? 'nieaktywny' : 'aktywny';
-       
-       let teamOptions = `<option value="" class="text-slate-400">-- Brak --</option>`;
-       allTeams.forEach(team => {
-         let selected = (tech.team === team) ? 'selected' : '';
-         teamOptions += `<option value="${team}" ${selected}>${team}</option>`;
-       });
-       teamOptions += `<option disabled>──────────</option><option value="__NEW__" class="font-bold text-seaviaBlue">➕ Nowy...</option>`;
+        let isActive = (tech.status === 'aktywny' || tech.status === 'active');
+        let statusColor = isActive ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-500 bg-slate-50 border-slate-200';
+        let statusDot = isActive ? 'text-emerald-500' : 'text-slate-400';
+        let newStatusToSet = isActive ? 'nieaktywny' : 'aktywny';
 
-       // KOMPAKTOWE PIGUŁKI DLA POKŁADÓW (Tekst oddzielony kreską)
-       let deckList = Object.keys(tech.hoursByDeck).map(deck => {
-         return `<span class="whitespace-nowrap"><strong class="text-seaviaBlue">${deck}:</strong> ${Math.round(tech.hoursByDeck[deck])}h</span>`;
-       }).join('<span class="text-slate-300 mx-1.5 font-light">|</span>');
-       
-       if (deckList === '') deckList = '<span class="text-[11px] text-slate-400 italic">Brak godzin</span>';
-       let compactDecks = `<div class="text-[11px] leading-relaxed text-slate-600">${deckList}</div>`;
+        let teamOptions = `<option value="" class="text-slate-400">-- Brak --</option>`;
+        allTeams.forEach(team => {
+          let selected = (tech.team === team) ? 'selected' : '';
+          teamOptions += `<option value="${team}" ${selected}>${team}</option>`;
+        });
+        teamOptions += `<option disabled>──────────</option><option value="__NEW__" class="font-bold text-seaviaBlue">➕ Nowy...</option>`;
 
-       tableHtml += `
-         <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-            <td class="p-3 font-bold text-slate-700 whitespace-nowrap">${tech.name}</td>
-            <td class="p-3">
-              <select onchange="changeTechTeam('${tech.name}', this)" class="team-select w-full text-[11px] font-bold border border-slate-200 rounded p-1.5 bg-white focus:ring-2 focus:ring-seaviaBlue cursor-pointer shadow-sm text-slate-700">
-                ${teamOptions}
-              </select>
-            </td>
-            <td class="p-3 text-center">
-              <button onclick="toggleTechStatus('${tech.name}', '${newStatusToSet}', this)" class="border ${statusColor} hover:opacity-80 px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider inline-flex items-center transition-all w-full justify-center">
-                <i class="fa-solid fa-circle text-[6px] mr-1 ${statusDot}"></i> ${isActive ? 'Aktywny' : 'Nieakt.'}
-              </button>
-            </td>
-            <td class="p-3 text-center font-black text-base text-candidoRed">${Math.round(tech.totalHours)}h</td>
-            <td class="p-3">${compactDecks}</td>
-         </tr>
-       `;
+        // KOMPAKTOWE PIGUŁKI DLA POKŁADÓW (Tekst oddzielony kreską)
+        let deckList = Object.keys(tech.hoursByDeck).map(deck => {
+          return `<span class="whitespace-nowrap"><strong class="text-seaviaBlue">${deck}:</strong> ${Math.round(tech.hoursByDeck[deck])}h</span>`;
+        }).join('<span class="text-slate-300 mx-1.5 font-light">|</span>');
+
+        if (deckList === '') deckList = '<span class="text-[11px] text-slate-400 italic">Brak godzin</span>';
+        let compactDecks = `<div class="text-[11px] leading-relaxed text-slate-600">${deckList}</div>`;
+
+        tableHtml += `
+          <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+             <td class="p-3 font-bold text-slate-700 whitespace-nowrap">${tech.name}</td>
+             <td class="p-3">
+               <select onchange="changeTechTeam('${tech.name}', this)" class="team-select w-full text-[11px] font-bold border border-slate-200 rounded p-1.5 bg-white focus:ring-2 focus:ring-seaviaBlue cursor-pointer shadow-sm text-slate-700">
+                 ${teamOptions}
+               </select>
+             </td>
+             <td class="p-3 text-center">
+               <button onclick="toggleTechStatus('${tech.name}', '${newStatusToSet}', this)" class="border ${statusColor} hover:opacity-80 px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider inline-flex items-center transition-all w-full justify-center">
+                 <i class="fa-solid fa-circle text-[6px] mr-1 ${statusDot}"></i> ${isActive ? 'Aktywny' : 'Nieakt.'}
+               </button>
+             </td>
+             <td class="p-3 text-center font-black text-base text-candidoRed">${Math.round(tech.totalHours)}h</td>
+             <td class="p-3">${compactDecks}</td>
+          </tr>
+        `;
     });
     tbodyTable.innerHTML = tableHtml;
 
@@ -186,45 +232,55 @@
       const isUnassigned = teamKey === '__UNASSIGNED__';
       const displayName = isUnassigned ? 'Brak przypisanej drużyny' : groupData.name;
       const safeId = isUnassigned ? 'unassigned' : teamKey.replace(/[^a-zA-Z0-9]/g, '_');
-      
+
       const badgeColor = isUnassigned ? 'bg-slate-500' : 'bg-seaviaBlue';
       const headerBg = isUnassigned ? 'bg-slate-100/50 hover:bg-slate-100' : 'bg-white hover:bg-slate-50';
       const borderStyle = isUnassigned ? 'border-dashed border-slate-300' : 'border-slate-200 shadow-sm';
-      
+
       const isOpen = openTeamIds.has(safeId);
       const hiddenClass = isOpen ? '' : 'hidden';
       const rotateClass = isOpen ? 'rotate-180' : '';
 
+      // OŁÓWEK DO EDYCJI / USUWANIA TEAMU (tylko dla prawdziwych zespołów)
+      let editActionHtml = '';
+      if (!isUnassigned) {
+        editActionHtml = `
+          <button onclick="event.stopPropagation(); promptEditTeamName('${teamKey.replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-seaviaBlue hover:bg-slate-100 p-1.5 rounded-full transition-all inline-flex items-center justify-center h-8 w-8" title="Edytuj lub usuń nazwę zespołu">
+            <i class="fa-solid fa-pen text-xs"></i>
+          </button>
+        `;
+      }
+
       let sectionHtml = `
         <div class="border rounded-lg overflow-hidden transition-all ${borderStyle}">
-          <button onclick="toggleTeam('${safeId}')" class="w-full px-4 py-4 md:px-6 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center ${headerBg} transition-colors gap-3">
+          <div onclick="toggleTeam('${safeId}')" class="w-full px-4 py-4 md:px-6 flex flex-col sm:flex-row sm:justify-between items-start sm:items-center ${headerBg} transition-colors gap-3 cursor-pointer select-none">
             <div class="flex items-center gap-3">
               <span class="font-bold text-lg text-slate-800">${displayName}</span>
+              ${editActionHtml}
               <span class="${badgeColor} text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">
                 <i class="fa-solid fa-users mr-1"></i> ${groupData.members.length}
               </span>
             </div>
             <div class="flex items-center w-full sm:w-auto justify-between sm:justify-end gap-6 text-slate-600">
-              <span class="font-bold text-sm bg-slate-100 px-3 py-1 rounded-md"><i class="fa-regular fa-clock text-candidoRed mr-1"></i> ${Math.round(groupData.totalHours)}h razem</span>
+              <span class="font-bold text-sm bg-slate-100 px-3 py-1.5 rounded-md inline-flex items-center"><i class="fa-regular fa-clock text-candidoRed mr-1.5"></i> ${Math.round(groupData.totalHours)}h razem</span>
               <i id="icon-${safeId}" class="fa-solid fa-chevron-down transition-transform duration-300 ${rotateClass}"></i>
             </div>
-          </button>
+          </div>
           <div id="body-${safeId}" class="${hiddenClass} border-t border-slate-100 divide-y divide-slate-100 bg-white">
       `;
 
       groupData.members.sort((a, b) => a.name.localeCompare(b.name));
-
       groupData.members.forEach(tech => {
         let isActive = (tech.status === 'aktywny' || tech.status === 'active');
         let statusColor = isActive ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-500 bg-slate-50 border-slate-200';
         let statusDot = isActive ? 'text-emerald-500' : 'text-slate-400';
         let newStatusToSet = isActive ? 'nieaktywny' : 'aktywny';
-        
+
         // KOMPAKTOWE GODZINY DLA KONTENERÓW
         let deckList = Object.keys(tech.hoursByDeck).map(deck => {
           return `<span class="whitespace-nowrap"><strong class="text-seaviaBlue">${deck}:</strong> ${Math.round(tech.hoursByDeck[deck])}h</span>`;
         }).join('<span class="text-slate-300 mx-1.5 font-light">|</span>');
-        
+
         let compactDecks = deckList !== '' ? `<div class="text-[11px] leading-relaxed text-slate-600">${deckList}</div>` : '';
 
         let teamOptions = `<option value="" class="text-slate-400">-- Usuń z drużyny --</option>`;
@@ -264,47 +320,180 @@
     const sortedKeys = Object.keys(grouped).filter(k => k !== '__UNASSIGNED__').sort();
     sortedKeys.forEach(key => { accordionHtml += buildTeamSection(key, grouped[key]); });
     if (grouped['__UNASSIGNED__']) accordionHtml += buildTeamSection('__UNASSIGNED__', grouped['__UNASSIGNED__']);
-    
+
     containerAccordion.innerHTML = accordionHtml;
 
-    // Przywrócenie wybranego widoku z pamięci podręcznej przeglądarki (żeby po odświeżeniu nie resetowało)
+    // Przywrócenie wybranego widoku
     switchTechView(currentTechView);
   }
 
-  // LOGIKA DODAWANIA NOWEGO ZESPOŁU BEZPOŚREDNIO NA EKRANIE
-  function promptAddTeam() {
-    let newTeam = prompt("Podaj nazwę nowego zespołu (np. Malarze):");
-    if (newTeam && newTeam.trim() !== '') {
-      newTeam = newTeam.trim();
-      
+  // EDYCJA NAZWY ZESPOŁU / USUWANIE
+  function promptEditTeamName(oldTeamName) {
+    let newTeamName = prompt("Zmień nazwę zespołu (pozostaw puste pole, aby usunąć zespół):", oldTeamName);
+    if (newTeamName === null) return; // Kliknięto Anuluj
+
+    newTeamName = newTeamName.trim();
+
+    if (newTeamName === "") {
+      // Usuwanie zespołu (pusta nazwa)
+      if (confirm(`Czy na pewno chcesz usunąć zespół "${oldTeamName}"?\nWszyscy przypisani technicy zostaną z niego odpięci (będą bez drużyny).`)) {
+        google.script.run
+          .withSuccessHandler(res => {
+            if (res.success) {
+              alert(res.message);
+              if (typeof refreshData === 'function') refreshData();
+            } else {
+              alert("Błąd: " + res.message);
+            }
+          })
+          .withFailureHandler(err => {
+            alert("Błąd połączenia: " + err);
+          })
+          .deleteTeam(oldTeamName);
+      }
+    } else {
+      // Zmiana nazwy zespołu
+      if (newTeamName === oldTeamName) return; // Brak zmian
+
+      // Sprawdzenie czy nowa nazwa już nie istnieje
       let exists = false;
       const selects = document.querySelectorAll('.team-select');
       if (selects.length > 0) {
         Array.from(selects[0].options).forEach(opt => {
-          if (opt.value.toLowerCase() === newTeam.toLowerCase()) exists = true;
+          if (opt.value.toLowerCase() === newTeamName.toLowerCase()) exists = true;
         });
       }
-      
+
       if (exists) {
-        alert("Zespół o takiej nazwie już znajduje się na liście!");
+        alert("Zespół o nazwie \"" + newTeamName + "\" już istnieje!");
         return;
       }
 
-      // Wstrzykiwanie nowego zespołu do wszystkich list rozwijanych
-      selects.forEach(select => {
-        let opt = document.createElement('option');
-        opt.value = newTeam;
-        opt.innerText = newTeam;
-        
-        let separatorIndex = Array.from(select.options).findIndex(o => o.disabled && o.text.includes('──'));
-        if (separatorIndex > -1) {
-          select.insertBefore(opt, select.options[separatorIndex]);
-        } else {
-          select.appendChild(opt);
-        }
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res.success) {
+            alert(res.message);
+            // Zaktualizuj lokalne ID w Set otwartych akordeonów, żeby stan się zachował
+            const oldSafeId = oldTeamName.replace(/[^a-zA-Z0-9]/g, '_');
+            const newSafeId = newTeamName.replace(/[^a-zA-Z0-9]/g, '_');
+            if (openTeamIds.has(oldSafeId)) {
+              openTeamIds.delete(oldSafeId);
+              openTeamIds.add(newSafeId);
+            }
+            if (typeof refreshData === 'function') refreshData();
+          } else {
+            alert("Błąd: " + res.message);
+          }
+        })
+        .withFailureHandler(err => {
+          alert("Błąd połączenia: " + err);
+        })
+        .assignTechnicianToTeam("__RENAME_TEAM__:" + oldTeamName, newTeamName); // Specjalny prefiks dla bezpiecznego przejmowania teamów
+    }
+  }
+
+  // INTERFEJS DODAWANIA NOWEGO ZESPOŁU PRZEZ MODAL (Z WYBOREM TECHNIKA)
+  function promptAddTeam() {
+    const modal = document.getElementById('addTeamModal');
+    const teamInput = document.getElementById('modalTeamName');
+    const selectTech = document.getElementById('modalTeamTechnician');
+    
+    if (!modal || !teamInput || !selectTech) return;
+
+    // Reset pól formularza
+    teamInput.value = '';
+    selectTech.innerHTML = '<option value="">-- Wybierz członka zespołu --</option>';
+
+    // Przefiltruj tylko aktywnych techników i posortuj alfabetycznie
+    const activeTechs = globalTechniciansDetails
+      .filter(t => t.status === 'aktywny' || t.status === 'active')
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (activeTechs.length === 0) {
+      selectTech.innerHTML += '<option disabled class="text-slate-400">Brak aktywnych techników</option>';
+    } else {
+      activeTechs.forEach(tech => {
+        let currentTeamText = tech.team ? ` (obecnie: ${tech.team})` : ' (brak zespołu)';
+        selectTech.innerHTML += `<option value="${tech.name}">${tech.name}${currentTeamText}</option>`;
       });
-      
-      alert(`Zespół "${newTeam}" został dodany do list rozwijanych.\n\nAby zapisać go w systemie na stałe, wybierz go teraz z listy przy nazwisku dowolnego technika.`);
+    }
+
+    modal.classList.remove('hidden');
+    teamInput.focus();
+  }
+
+  function closeAddTeamModal() {
+    const modal = document.getElementById('addTeamModal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  function submitAddTeamModal() {
+    const teamInput = document.getElementById('modalTeamName');
+    const selectTech = document.getElementById('modalTeamTechnician');
+    
+    if (!teamInput || !selectTech) return;
+
+    const teamName = teamInput.value.trim();
+    const techName = selectTech.value;
+
+    if (teamName === '') {
+      alert('Podaj nazwę nowego zespołu!');
+      return;
+    }
+
+    if (!techName) {
+      alert('Wybierz technika, którego chcesz przypisać do tego zespołu!');
+      return;
+    }
+
+    // Sprawdzenie czy zespół o takiej nazwie już istnieje w bazie (na liście opcji)
+    let exists = false;
+    const selects = document.querySelectorAll('.team-select');
+    if (selects.length > 0) {
+      Array.from(selects[0].options).forEach(opt => {
+        if (opt.value.toLowerCase() === teamName.toLowerCase()) exists = true;
+      });
+    }
+
+    if (exists) {
+      alert(`Zespół o nazwie "${teamName}" już istnieje!`);
+      return;
+    }
+
+    // Blokada przycisku zapisu i animacja
+    const modal = document.getElementById('addTeamModal');
+    const saveBtn = modal.querySelector('button[onclick="submitAddTeamModal()"]');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Zapisywanie...';
+    }
+
+    // Zapis poprzez przypisanie wybranego aktywnego technika do nowego zespołu
+    google.script.run
+      .withSuccessHandler(res => {
+        closeAddTeamModal();
+        if (res.success) {
+          if (typeof refreshData === 'function') refreshData();
+        } else {
+          alert("Błąd: " + res.message);
+          resetModalSaveButton();
+        }
+      })
+      .withFailureHandler(err => {
+        alert("Błąd połączenia: " + err);
+        resetModalSaveButton();
+      })
+      .assignTechnicianToTeam(techName, teamName);
+  }
+
+  function resetModalSaveButton() {
+    const modal = document.getElementById('addTeamModal');
+    if (modal) {
+      const saveBtn = modal.querySelector('button[onclick="submitAddTeamModal()"]');
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fa-solid fa-check mr-1.5"></i> Utwórz i przypisz';
+      }
     }
   }
 
@@ -318,8 +507,14 @@
 
     google.script.run
       .withSuccessHandler(res => {
-        if(res.success) { if(typeof refreshData === 'function') refreshData(); } 
-        else { alert("Błąd: " + res.message); btnElement.innerHTML = originalContent; btnElement.classList.remove('opacity-50', 'cursor-not-allowed'); btnElement.disabled = false; }
+        if(res.success) { 
+          if(typeof refreshData === 'function') refreshData(); 
+        } else { 
+          alert("Błąd: " + res.message); 
+          btnElement.innerHTML = originalContent; 
+          btnElement.classList.remove('opacity-50', 'cursor-not-allowed'); 
+          btnElement.disabled = false; 
+        }
       })
       .toggleTechnicianStatus(name, newStatus);
   }
@@ -328,7 +523,10 @@
     let newTeam = selectElement.value;
     if (newTeam === '__NEW__') {
       newTeam = prompt("Wpisz nazwę nowej drużyny dla technika " + techName + ":");
-      if (newTeam === null || newTeam.trim() === '') { if(typeof refreshData === 'function') refreshData(); return; }
+      if (newTeam === null || newTeam.trim() === '') { 
+        if(typeof refreshData === 'function') refreshData(); 
+        return; 
+      }
       newTeam = newTeam.trim();
     }
     selectElement.disabled = true;
@@ -336,8 +534,12 @@
 
     google.script.run
       .withSuccessHandler(res => {
-        if(res.success) { if(typeof refreshData === 'function') refreshData(); } 
-        else { alert("Błąd: " + res.message); if(typeof refreshData === 'function') refreshData(); }
+        if(res.success) { 
+          if(typeof refreshData === 'function') refreshData(); 
+        } else { 
+          alert("Błąd: " + res.message); 
+          if(typeof refreshData === 'function') refreshData(); 
+        }
       })
       .assignTechnicianToTeam(techName, newTeam);
   }

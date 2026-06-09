@@ -1,66 +1,75 @@
-<div class="bg-white rounded-lg shadow-sm p-8 border border-gray-100 animate-fade-in">
-  <h2 class="text-2xl font-bold text-seaviaBlue mb-6 border-b pb-2">Status Realizacji Projektu</h2>
-  
-  <!-- Główne statystyki -->
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-center items-center text-center">
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Całkowity Postęp</p>
-      <p class="text-3xl font-bold text-candidoRed" id="dashTotalProgress">
-        <i class="fa-solid fa-ellipsis fa-fade text-slate-300"></i>
-      </p>
-      <p class="text-[10px] text-slate-400 mt-1">Średnia ważona z czasu</p>
-    </div>
-    
-    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Wypracowane Godziny</p>
-      <p class="text-3xl font-bold text-slate-800" id="dashTotalHours">
-        <i class="fa-solid fa-ellipsis fa-fade text-slate-300"></i>
-      </p>
-      <p class="text-[10px] text-slate-400 mt-1">Zatwierdzone w bazie</p>
-    </div>
-    
-    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Aktywni Technicy</p>
-      <p class="text-3xl font-bold text-emerald-600" id="dashActiveTechs">
-        <i class="fa-solid fa-ellipsis fa-fade text-slate-300"></i>
-      </p>
-      <p class="text-[10px] text-slate-400 mt-1">Obecni na projekcie</p>
-    </div>
-    
-    <div class="bg-slate-50 rounded-md p-4 border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
-      <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Wszyscy Technicy</p>
-      <p class="text-3xl font-bold text-slate-600" id="dashTotalTechs">
-        <i class="fa-solid fa-ellipsis fa-fade text-slate-300"></i>
-      </p>
-      <p class="text-[10px] text-slate-400 mt-1">Biorący udział od początku</p>
+<div class="bg-white rounded-lg shadow-sm p-4 md:p-8 border border-gray-100 animate-fade-in">
+  <!-- Nagłówek Komponentu -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-seaviaBlue">
+        <i class="fa-solid fa-chart-line mr-2 text-candidoRed"></i> Status Realizacji Projektu
+      </h2>
+      <p class="text-sm text-slate-500 mt-1">Podgląd postępów prac, wypracowanych godzin oraz statystyk zespołu.</p>
     </div>
   </div>
 
-  <!-- Główny Wykres Projektu -->
-  <div class="mb-10 bg-white p-6 border border-slate-100 rounded-lg shadow-sm">
-    <h3 class="text-lg font-bold text-seaviaBlue mb-4 text-center">Postęp Główny (Z podziałem na Pokłady)</h3>
-    
-    <div class="relative w-full max-w-md mx-auto h-64 flex justify-center items-center">
-      <!-- Środek pierścienia - Dodano 'pointer-events-none' i wyśrodkowanie -->
-      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-6">
-        <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Godziny</span>
-        <!-- Zmiana z text-3xl na text-2xl oraz dodanie transition do responsywności -->
-        <span id="centerChartHours_main" class="text-2xl font-bold text-seaviaBlue transition-all">
-          <i class="fa-solid fa-ellipsis fa-fade text-slate-300 text-lg"></i>
-        </span>
+  <!-- Górne panele KPI (Statystyki) -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- KPI 1: Całkowity postęp projektu -->
+    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+      <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Całkowity Postęp</span>
+      <div id="dashTotalProgress" class="text-3xl font-black text-candidoRed">0.0%</div>
+      <span class="text-[10px] text-slate-400 mt-1 block">Średnia ważona z czasu</span>
+    </div>
+
+    <!-- KPI 2: Wszystkie wypracowane godziny -->
+    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+      <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Wypracowane Godziny</span>
+      <div id="dashTotalHours" class="text-3xl font-black text-seaviaBlue">0h</div>
+      <span class="text-[10px] text-slate-400 mt-1 block">Zatwierdzone w bazie</span>
+    </div>
+
+    <!-- KPI 3: Aktywni technicy -->
+    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+      <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Aktywni Technicy</span>
+      <div id="dashActiveTechs" class="text-3xl font-black text-emerald-600">0</div>
+      <span class="text-[10px] text-slate-400 mt-1 block">Obecni na projekcie</span>
+    </div>
+
+    <!-- KPI 4: Wszyscy zarejestrowani technicy -->
+    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
+      <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Wszyscy Technicy</span>
+      <div id="dashTotalTechs" class="text-3xl font-black text-slate-700">0</div>
+      <span class="text-[10px] text-slate-400 mt-1 block">Biorący udział od początku</span>
+    </div>
+  </div>
+
+  <!-- Sekcja Głównego Wykresu Kołowego -->
+  <div class="bg-white border border-slate-200 rounded-lg shadow-sm p-6 mb-8">
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+      <h3 class="text-lg font-bold text-seaviaBlue text-center sm:text-left">Postęp Główny (Z podziałem na Pokłady)</h3>
+      <div class="flex gap-2 text-xs bg-slate-100 p-1 rounded border border-slate-200">
+        <button id="btnGroupDeck" onclick="changeMainChartGroup('deck')" class="px-4 py-2 rounded-md text-xs font-bold transition-all bg-seaviaBlue text-white shadow-sm">
+          Podział na Pokłady
+        </button>
+        <button id="btnGroupArea" onclick="changeMainChartGroup('area')" class="px-4 py-2 rounded-md text-xs font-bold transition-all text-slate-600 hover:text-seaviaBlue">
+          Podział na Obszary
+        </button>
+      </div>
+    </div>
+
+    <div class="relative w-full max-w-md mx-auto h-72">
+      <!-- Element pozycjonowany absolutnie wyświetlający godziny wewnątrz pierścienia (Chart.js cutout) -->
+      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-4">
+        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Godziny</span>
+        <span id="centerChartHours_main" class="text-2xl font-bold text-seaviaBlue transition-all">0h</span>
       </div>
       <canvas id="mainProjectChart" class="w-full h-full"></canvas>
     </div>
-    
-    <p class="text-xs text-center text-slate-400 mt-4">
-      <i class="fa-solid fa-circle-info mr-1"></i> Kliknij legendę, aby ukryć pokład. Godziny w środku przeliczą się automatycznie.
-    </p>
   </div>
 
-  <!-- Sekcja na wykresy poszczególnych pokładów -->
-  <h3 class="text-lg font-bold text-seaviaBlue mb-4 border-b pb-2">Postępy na poszczególnych pokładach</h3>
-  <!-- Zmiana gap na większy, żeby ładniej rozmieścić wykresy -->
-  <div id="deckChartsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-    <p class="text-sm text-slate-400 italic col-span-full" id="deckChartsPlaceholder">Trwa ładowanie szczegółowych danych...</p>
+  <!-- Sekcja Kart Wykresów Szczegółowych dla Pokładów -->
+  <div class="border-t border-slate-100 pt-6">
+    <h3 class="text-lg font-bold text-seaviaBlue mb-6">Postępy na poszczególnych pokładach</h3>
+    <!-- Scripts_Realizacja dynamicznie wstrzykuje karty wykresów do poniższego kontenera -->
+    <div id="deckChartsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <!-- Dynamiczne wykresy kołowe (DK) i Prace Dodatkowe (EXTRA JOB) -->
+    </div>
   </div>
 </div>

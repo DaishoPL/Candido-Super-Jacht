@@ -28,7 +28,7 @@ function include(filename) {
  */
 function getInitialData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-
+  
   let technicians = [];
   let techniciansDetails = [];
   let techStats = { total: 0, active: 0 };
@@ -36,7 +36,7 @@ function getInitialData() {
   if (dataSheet) {
     const lastRow = dataSheet.getLastRow();
     if (lastRow >= 9) {
-      const techData = dataSheet.getRange(9, 1, lastRow - 8, 3).getValues(); 
+      const techData = dataSheet.getRange(9, 1, lastRow - 8, 3).getValues();
       techData.forEach(r => {
         let team = String(r[0]).trim();
         let name = String(r[1]).trim();
@@ -52,7 +52,7 @@ function getInitialData() {
   }
 
   let totalWorkedHours = 0;
-  let workedHoursByTask = {}; 
+  let workedHoursByTask = {};
   let spisHours = []; // Dla wykresów we froncie (podziały na pokłady/obszary)
 
   // Obiekt do przetrzymywania godzin dla prac dodatkowych "- Extra Job"
@@ -64,7 +64,7 @@ function getInitialData() {
 
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (sheetSpis && sheetSpis.getLastRow() >= 2) {
-    const spisData = sheetSpis.getRange(2, 2, sheetSpis.getLastRow() - 1, 7).getDisplayValues(); 
+    const spisData = sheetSpis.getRange(2, 2, sheetSpis.getLastRow() - 1, 7).getDisplayValues();
     spisData.forEach(row => {
       let timeStart = String(row[0]).trim(); // B
       let timeEnd = String(row[1]).trim();   // C
@@ -79,23 +79,19 @@ function getInitialData() {
 
       if (timeStart && timeEnd && !isCancelled) {
         let duration = parseWorkTimeBackend(timeEnd) - parseWorkTimeBackend(timeStart);
-        if (duration < 0) duration += 24; 
+        if (duration < 0) duration += 24;
         
         // Zaokrąglamy pojedynczy czas trwania do 2 miejsc po przecinku, aby uniknąć szumu JS (np. 0.1000000000001)
         duration = Math.round(duration * 100) / 100;
-
         if (duration > 0) {
           // Szukamy frazy "- Extra Job" wyłącznie w kolumnie G (ID prac / taskId)
           if (taskId.includes("- Extra Job")) {
             extraJobs.totalHours += duration;
-
             if (!extraJobs.byDeck[deck]) extraJobs.byDeck[deck] = 0;
             extraJobs.byDeck[deck] += duration;
-
             if (!extraJobs.byArea[area]) extraJobs.byArea[area] = 0;
             extraJobs.byArea[area] += duration;
           }
-
           totalWorkedHours += duration;
           let key = deck + "_" + taskName;
           if(!workedHoursByTask[key]) workedHoursByTask[key] = 0;
@@ -123,7 +119,6 @@ function getInitialData() {
 
   // Precyzyjne zaokrąglanie wszystkich zagregowanych sum do 1 miejsca po przecinku
   totalWorkedHours = Math.round(totalWorkedHours * 10) / 10;
-
   extraJobs.totalHours = Math.round(extraJobs.totalHours * 10) / 10;
   Object.keys(extraJobs.byDeck).forEach(k => {
     extraJobs.byDeck[k] = Math.round(extraJobs.byDeck[k] * 10) / 10;
@@ -139,7 +134,7 @@ function getInitialData() {
     });
   });
 
-  let tasksTree = {}; 
+  let tasksTree = {};
   const sheetCandido = ss.getSheetByName('Candido');
   if (sheetCandido) {
     const lastRow = sheetCandido.getLastRow();
@@ -147,12 +142,11 @@ function getInitialData() {
       const data = sheetCandido.getRange(1, 1, lastRow, 16).getValues();
       let currentDeck = "";
       let currentArea = "";
-
+      
       for (let i = 2; i < data.length; i++) {
         let deckVal = String(data[i][2] || "").trim().toUpperCase();
         if (deckVal === "" && String(data[i][1] || "").toLowerCase().includes("dk")) deckVal = String(data[i][1] || "").trim().toUpperCase();
         let areaVal = String(data[i][3] || "").trim();
-
         let taskName = String(data[i][8] || "").trim();
         if (taskName === "") {
             let taskH = String(data[i][7] || "").trim();
@@ -160,7 +154,7 @@ function getInitialData() {
             if (taskH !== "" && !taskH.toLowerCase().includes("seavia")) taskName = taskH;
             else if (taskJ !== "") taskName = taskJ;
         }
-
+        
         let plannedStart = data[i][9];
         let plannedEnd = data[i][12];
         let plannedDays = 1;
@@ -169,26 +163,25 @@ function getInitialData() {
           plannedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
         }
 
-        let rawProgress = data[i][15]; 
+        let rawProgress = data[i][15];
         let progressNum = 0;
         if (typeof rawProgress === 'number') {
           progressNum = (rawProgress > 0 && rawProgress <= 1) ? Math.round(rawProgress * 100) : Math.round(rawProgress);
         } else if (typeof rawProgress === 'string') {
           progressNum = parseInt(rawProgress.replace('%', '').trim()) || 0;
         }
-
+        
         if (deckVal !== "") {
-          currentDeck = deckVal; currentArea = ""; 
+          currentDeck = deckVal; currentArea = "";
           if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {};
         }
         if (areaVal !== "") currentArea = areaVal;
-
         if (currentDeck === "" || taskName === "") continue;
         let area = currentArea === "" ? "Brak strefy" : currentArea;
 
-        if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {}; 
+        if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {};
         if (!tasksTree[currentDeck][area]) tasksTree[currentDeck][area] = [];
-
+        
         let taskId = String(data[i][5] || "").trim(); // F - ID PRAC
         let key = currentDeck + "_" + taskName;
         let taskHours = workedHoursByTask[key] || 0;
@@ -209,8 +202,8 @@ function getInitialData() {
   return {
     technicians: technicians,
     techniciansDetails: techniciansDetails,
-    techStats: techStats,           
-    totalWorkedHours: totalWorkedHours, 
+    techStats: techStats,          
+    totalWorkedHours: totalWorkedHours,
     tasksTree: tasksTree,
     spisHours: spisHours, // Bardzo ważne dla frontend (InitDashboard)
     extraJobs: extraJobs  // Dane dla wykresu kołowego prac dodatkowych
@@ -235,7 +228,7 @@ function getTasksForTechnicians(techNamesArray, dateStr) {
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis) return tasks;
   const lastRow = sheetSpis.getLastRow();
-  if (lastRow < 2) return tasks; 
+  if (lastRow < 2) return tasks;
   const data = sheetSpis.getRange(2, 1, lastRow - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, lastRow - 1, 1).getValues();
   const searchTechs = techNamesArray.map(t => String(t).trim().toLowerCase());
@@ -255,17 +248,16 @@ function getTasksForTechnicians(techNamesArray, dateStr) {
         end: rowEnd,
         deck: rowDeck,
         taskName: rowTask,
-        dbRowIndex: i + 2 
+        dbRowIndex: i + 2
       });
     }
   }
-
+  
   tasks.sort((a, b) => {
     let nameCmp = a.techName.localeCompare(b.techName);
     if (nameCmp !== 0) return nameCmp;
     return a.start.localeCompare(b.start);
   });
-
   return tasks;
 }
 
@@ -296,10 +288,8 @@ function addTechnician(name) {
     const techName = name.trim();
     const dataSheet = ss.getSheetByName('Data sheet');
     if (!dataSheet) return { success: false, message: "Błąd: Brak zakładki 'Data sheet' w arkuszu." };
-
     const lastRow = dataSheet.getLastRow();
     let added = false;
-
     if (lastRow >= 9) {
       const values = dataSheet.getRange("B9:B").getValues();
       for (let i = 0; i < values.length; i++) {
@@ -322,7 +312,6 @@ function toggleTechnicianStatus(name, newStatus) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const dataSheet = ss.getSheetByName('Data sheet');
     if (!dataSheet) return { success: false, message: "Brak zakładki 'Data sheet'." };
-
     const lastRow = dataSheet.getLastRow();
     if (lastRow >= 9) {
       const techData = dataSheet.getRange(9, 2, lastRow - 8, 1).getValues();
@@ -344,10 +333,9 @@ function assignTechnicianToTeam(techName, teamName) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const dataSheet = ss.getSheetByName('Data sheet');
     if (!dataSheet) return { success: false, message: "Brak zakładki 'Data sheet'." };
-
     const lastRow = dataSheet.getLastRow();
     if (lastRow >= 9) {
-      const techData = dataSheet.getRange(9, 2, lastRow - 8, 1).getValues(); 
+      const techData = dataSheet.getRange(9, 2, lastRow - 8, 1).getValues();
       for (let i = 0; i < techData.length; i++) {
         if (String(techData[i][0]).trim().toLowerCase() === techName.trim().toLowerCase()) {
           dataSheet.getRange(9 + i, 1).setValue(teamName);
@@ -389,20 +377,17 @@ function submitWorkReport(formData) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let idPrac = "";
     const sheetCandido = ss.getSheetByName('Candido');
-
     if (formData.isCustomTask) {
       if (sheetCandido) {
         idPrac = formData.customTaskId || "Dodatkowe";
-
         // Sprawdź, czy do nowego ID należy dopisać "- Extra Job"
         if (formData.isExtraJob && !idPrac.toUpperCase().includes("- EXTRA JOB")) {
           idPrac += " - Extra Job";
         }
-
         let formattedDate = formData.workDate;
         let dParts = formData.workDate.split('-');
         if (dParts.length === 3) {
-           formattedDate = dParts[1] + "/" + dParts[2] + "/" + dParts[0]; 
+           formattedDate = dParts[1] + "/" + dParts[2] + "/" + dParts[0];
         }
         let newRow = new Array(16).fill("");
         newRow[2] = formData.deck;
@@ -428,27 +413,25 @@ function submitWorkReport(formData) {
         }
       }
     }
-
     let sheetSpis = ss.getSheetByName('Spis wykonanych prac');
     if (!sheetSpis) sheetSpis = ss.insertSheet('Spis wykonanych prac');
     if (sheetSpis.getLastRow() === 0) {
       sheetSpis.appendRow(["Data", "Godzina rozpoczęcia pracy", "Godzina zakończenia pracy", "Pokład", "Typ prac", "Nazwa prac", "ID prac", "Technik"]);
       sheetSpis.getRange(1, 1, 1, 8).setFontWeight("bold");
     }
-
     let techsArray = formData.techniciansArray;
     if (!techsArray || !Array.isArray(techsArray)) {
       return { success: false, message: "Brak techników do przypisania." };
     }
     techsArray.forEach(tech => {
        sheetSpis.appendRow([
-         formData.workDate, 
-         formData.timeStart, 
-         formData.timeEnd, 
-         formData.deck ? String(formData.deck).trim().toUpperCase() : "", 
-         formData.area, 
-         formData.taskName, 
-         idPrac, 
+         formData.workDate,
+         formData.timeStart,
+         formData.timeEnd,
+         formData.deck ? String(formData.deck).trim().toUpperCase() : "",
+         formData.area,
+         formData.taskName,
+         idPrac,
          tech
        ]);
     });
@@ -484,10 +467,10 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
   let firstThursday = target.valueOf();
   target.setMonth(0, 1);
   if (target.getDay() !== 4) {
-    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+      target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
   }
   let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
-
+  
   let reportData = {
     settings: { includeBreaks: includeBreaks },
     weekInfo: {
@@ -522,37 +505,28 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
     let rowDeck = String(spisData[i][3]).trim().toUpperCase();
     let rowTask = String(spisData[i][5]).trim();
     let isCancelled = String(spisData[i][5]).includes("[ANULOWANE]");
-
     let isBreak = rowTask.toLowerCase().includes("przerwa") || rowTask.toLowerCase().includes("break");
     if (isBreak && !includeBreaks) continue;
-
     if (!rowStart || !rowEnd || isCancelled || !rowDeck || !rowTask) continue;
-
     if (rowTask.toLowerCase().includes("site manager") || rowTask.toLowerCase().includes("meetings") || rowTask.toLowerCase() === "supervision") {
        rowTask = "Supervision";
     }
-
     let duration = parseWorkTimeBackend(rowEnd) - parseWorkTimeBackend(rowStart);
-    if (duration < 0) duration += 24; 
+    if (duration < 0) duration += 24;
     duration = Math.round(duration * 100) / 100;
-
     if (duration > 0) {
       if (!reportData.decks[rowDeck]) {
          reportData.decks[rowDeck] = { tasks: {} };
       }
-
       if (!reportData.decks[rowDeck].tasks[rowTask]) {
          reportData.decks[rowDeck].tasks[rowTask] = [0, 0, 0, 0, 0, 0, 0];
       }
-
       reportData.decks[rowDeck].tasks[rowTask][dayIndex] += duration;
-
       if(rowTask === "Supervision") {
         uniqueTasks.add(rowTask);
       }
     }
   }
-
   reportData.allTasks = Array.from(uniqueTasks).sort((a, b) => a.localeCompare(b));
 
   Object.keys(reportData.decks).forEach(d => {
@@ -560,7 +534,6 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
       reportData.decks[d].tasks[t] = reportData.decks[d].tasks[t].map(h => Math.round(h * 10) / 10);
     });
   });
-
   return reportData;
 }
 
@@ -568,7 +541,6 @@ function getTimeByWeekReport(includeBreaks) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return { decks: {}, allTasks: [], allWeeks: [] };
-
   const projectTasks = new Set();
   const sheetCandido = ss.getSheetByName('Candido');
   if (sheetCandido && sheetCandido.getLastRow() >= 3) {
@@ -601,33 +573,25 @@ function getTimeByWeekReport(includeBreaks) {
   for (let i = 0; i < spisData.length; i++) {
     let rowDate = rawDates[i][0];
     if (!(rowDate instanceof Date)) continue;
-
     let weekNum = getWeekNumber(rowDate);
-
     let rowStart = spisData[i][1];
     let rowEnd = spisData[i][2];
     let rowDeck = String(spisData[i][3]).trim().toUpperCase();
     let rowTask = String(spisData[i][5]).trim();
     let isCancelled = rowTask.includes("[ANULOWANE]");
-
     let isBreak = rowTask.toLowerCase().includes("przerwa") || rowTask.toLowerCase().includes("break");
     if (isBreak && !includeBreaks) continue;
-
     if (!rowStart || !rowEnd || isCancelled || !rowDeck || !rowTask) continue;
-
     if (rowTask.toLowerCase().includes("site manager") || rowTask.toLowerCase().includes("meetings") || rowTask.toLowerCase() === "supervision") {
        rowTask = "Supervision";
     }
-
     let duration = parseWorkTimeBackend(rowEnd) - parseWorkTimeBackend(rowStart);
     if (duration < 0) duration += 24;
     duration = Math.round(duration * 100) / 100;
-
     if (duration > 0) {
       if (!reportData.decks[rowDeck]) {
          reportData.decks[rowDeck] = { tasks: {} };
       }
-
       if (!reportData.decks[rowDeck].tasks[rowTask]) {
          reportData.decks[rowDeck].tasks[rowTask] = { total: 0, weeklyHours: {} };
       }
@@ -636,7 +600,6 @@ function getTimeByWeekReport(includeBreaks) {
       }
       reportData.decks[rowDeck].tasks[rowTask].weeklyHours[weekNum] += duration;
       reportData.decks[rowDeck].tasks[rowTask].total += duration;
-
       if(rowTask === "Supervision") {
         reportData.allTasks.add(rowTask);
       }
@@ -648,21 +611,19 @@ function getTimeByWeekReport(includeBreaks) {
   reportData.allWeeks = Array.from(reportData.allWeeks);
 
   Object.keys(reportData.decks).forEach(d => {
-    Object.keys(reportData.decks[d].tasks).forEach(t => {
-      let task = reportData.decks[d].tasks[t];
-      task.total = Math.round(task.total * 10) / 10;
-      Object.keys(task.weeklyHours).forEach(w => {
-        task.weeklyHours[w] = Math.round(task.weeklyHours[w] * 10) / 10;
-      });
-    });
+     Object.keys(reportData.decks[d].tasks).forEach(t => {
+       let task = reportData.decks[d].tasks[t];
+       task.total = Math.round(task.total * 10) / 10;
+       Object.keys(task.weeklyHours).forEach(w => {
+         task.weeklyHours[w] = Math.round(task.weeklyHours[w] * 10) / 10;
+       });
+     });
   });
-
   return reportData;
 }
 
 function getTechnicianWeeklyReports(dateStr, includeBreaks) {
   if (!dateStr) return null;
-
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return null;
@@ -670,16 +631,13 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
   let selectedDate = new Date(dateStr);
   let dayOfWeek = selectedDate.getDay();
   let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-
   let monday = new Date(selectedDate.setDate(diff));
   let weekDates = [];
-
   for (let i = 0; i < 7; i++) {
     let d = new Date(monday);
     d.setDate(monday.getDate() + i);
     weekDates.push(parseDateToYMD(d));
   }
-
   let target = new Date(monday.valueOf());
   let dayNr = (monday.getDay() + 6) % 7;
   target.setDate(target.getDate() - dayNr + 3);
@@ -703,9 +661,7 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
   for (let i = 0; i < spisData.length; i++) {
     let rowDate = parseDateToYMD(rawDates[i][0]);
     let dayIndex = weekDates.indexOf(rowDate);
-
     if (dayIndex === -1) continue;
-
     let rowStart = String(spisData[i][1]).trim();
     let rowEnd = String(spisData[i][2]).trim();
     let rowDeck = String(spisData[i][3]).trim().toUpperCase();
@@ -714,24 +670,19 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
     let rowRoomId = String(spisData[i][6]).trim();
     let techName = String(spisData[i][7]).trim();
     let isCancelled = rowTask.includes("[ANULOWANE]");
-
     let isBreak = rowTask.toLowerCase().includes("przerwa") || rowTask.toLowerCase().includes("break") || rowTask.toLowerCase().includes("brake");
     if (isBreak && !includeBreaks) continue;
-
     if (!rowStart || !rowEnd || isCancelled || !techName || !rowTask) continue;
-
     let duration = parseWorkTimeBackend(rowEnd) - parseWorkTimeBackend(rowStart);
-    if (duration < 0) duration += 24; 
+    if (duration < 0) duration += 24;
     duration = Math.round(duration * 100) / 100;
-
     if (duration > 0) {
       if (!reportData.technicians[techName]) {
-         reportData.technicians[techName] = { 
-             totalHours: 0, 
-             days: [[], [], [], [], [], [], []] 
+         reportData.technicians[techName] = {
+             totalHours: 0,
+             days: [[], [], [], [], [], [], []]
          };
       }
-
       reportData.technicians[techName].days[dayIndex].push({
          start: rowStart,
          end: rowEnd,
@@ -741,7 +692,6 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
          area: rowArea,
          roomId: rowRoomId
       });
-
       reportData.technicians[techName].totalHours += duration;
     }
   }
@@ -750,7 +700,6 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
   Object.keys(reportData.technicians).forEach(techName => {
     reportData.technicians[techName].totalHours = Math.round(reportData.technicians[techName].totalHours * 10) / 10;
   });
-
   return reportData;
 }
 
@@ -766,6 +715,7 @@ function generateStyledExcelReport(reportData, reportType) {
     const spreadsheet = SpreadsheetApp.create(tempFileName);
     const tempFile = DriveApp.getFileById(spreadsheet.getId());
     tempFile.moveTo(targetFolder);
+    
     const sheet = spreadsheet.getSheets()[0];
     sheet.setName(isWeekly ? "Weekly Report" : "Annual Report");
 
@@ -844,10 +794,10 @@ function generateStyledExcelReport(reportData, reportType) {
           sheet.getRange(currentRow, 1, 1, rowData.length).setValues([rowData]).setNumberFormat("0.0");
           sheet.getRange(currentRow, 1, 1, 2).setNumberFormat("0");
           sheet.getRange(currentRow, 2).setHorizontalAlignment("left");
-
+          
           let totalCell = sheet.getRange(currentRow, 3);
           if (rowData[2] > 0) totalCell.setBackground(green).setFontWeight("bold"); else totalCell.setBackground(totalHeaderColor);
-
+          
           for (let i = 4; i <= rowData.length; i++) {
             let cell = sheet.getRange(currentRow, i);
             if (cell.getValue() > 0) cell.setBackground(lightGreen).setFontWeight("bold");
@@ -866,13 +816,13 @@ function generateStyledExcelReport(reportData, reportType) {
       }
       filteredTasks.forEach(taskName => {
         // Renderujemy unikalne zadania (nawet o wartości 0)
-        if (taskName !== "Supervision" && deckData.tasks[taskName]) {
+        if (taskName !== "Supervision") {
           renderRow(taskName, taskIndex++);
         }
       });
 
       // Wyliczamy faktyczną liczbę wygenerowanych wierszy danych na tym pokładzie
-      let renderedRowCount = taskIndex; 
+      let renderedRowCount = taskIndex;
       if (renderedRowCount > 0) {
         let tableStartRow = currentRow - renderedRowCount - 1; // Wracamy do wiersza nagłówka
         let numRows = renderedRowCount + 1; // headers + wiersze danych
@@ -898,9 +848,11 @@ function generateStyledExcelReport(reportData, reportType) {
       },
       muteHttpExceptions: true
     });
+
     if (response.getResponseCode() !== 200) {
       throw new Error("Błąd podczas konwersji arkusza do formatu Excel (.xlsx): " + response.getContentText());
     }
+
     const excelBlob = response.getBlob().setName(`${baseName}.xlsx`);
 
     // 3. Zapisujemy ostateczny plik Excel (.xlsx) w Twoim docelowym folderze na Google Drive
@@ -932,7 +884,6 @@ function deleteTeam(teamName) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const dataSheet = ss.getSheetByName('Data sheet');
     if (!dataSheet) return { success: false, message: "Brak zakładki 'Data sheet'." };
-
     const lastRow = dataSheet.getLastRow();
     let updatedCount = 0;
     if (lastRow >= 9) {
@@ -962,7 +913,6 @@ function renameTeam(oldName, newName) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const dataSheet = ss.getSheetByName('Data sheet');
     if (!dataSheet) return { success: false, message: "Brak zakładki 'Data sheet'." };
-
     const lastRow = dataSheet.getLastRow();
     let updatedCount = 0;
     if (lastRow >= 9) {

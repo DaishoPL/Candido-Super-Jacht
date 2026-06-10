@@ -1,22 +1,209 @@
 <!-- Wczytanie biblioteki Chart.js - BEZ NIEJ WYKRESY NIE BĘDĄ DZIAŁAĆ -->
+
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 
 <script>
   // Globalne zmienne do przechowywania instancji wykresów
   let mainChartInstance = null;
   let deckChartInstances = {};
   let dashboardData = null;
-  let mainChartGroup = 'deck'; // 'deck' lub 'area'
-  let extraJobGroup = 'deck';  // 'deck' lub 'area' dla wykresu EXTRA JOB
+
+  // Stan aktywności poszczególnych wycinków dla wykresów wielowarstwowych
+  let mainChartActiveState = { decks: {}, areas: {} };
+  let extraChartActiveState = { decks: {}, areas: {} };
+
+  // Kopie zapasowe oryginalnych danych dla wykresów wielowarstwowych
+  let mainChartOriginalData = { deckLabels: [], deckValues: [], areaLabels: [], areaValues: [] };
+  let extraChartOriginalData = { deckLabels: [], deckValues: [], areaLabels: [], areaValues: [] };
 
   // Paleta kolorów spójna z identyfikacją wizualną Seavia
   const CHART_COLORS = [
-    '#0f3460', '#e94560', '#16a34a', '#f59e0b', '#8b5cf6', 
+    '#0f3460', '#e94560', '#16a34a', '#f59e0b', '#8b5cf6',
     '#06b6d4', '#ec4899', '#14b8a6', '#f43f5e', '#10b981'
   ];
 
+  /**
+   * Pomocnicze generowanie palety kolorów
+   */
+  function getColors(count) {
+    const colors = [];
+    for (let i = 0; i < count; i++) {
+      colors.push(CHART_COLORS[i % CHART_COLORS.length]);
+    }
+    return colors;
+  }
+
+  /**
+   * Obsługa kliknięcia w legendę dla standardowych wykresów jednopoziomowych
+   */
+  const legendClickHandler = function(e, legendItem, legend) {
+    const index = legendItem.index;
+    const ci = legend.chart;
+
+    // Przełącz widoczność wybranego wycinka
+    ci.toggleDataVisibility(index);
+    ci.update();
+
+    // Przelicz sumę godzin tylko dla widocznych wycinków
+    let visibleSum = 0;
+    const dataset = ci.data.datasets[0];
+    dataset.data.forEach((val, i) => {
+      if (ci.getDataVisibility(i)) {
+        visibleSum += val;
+      }
+    });
+
+    // Bezpieczne pobranie ID i aktualizacja sumy na środku wykresu
+    if (ci.options.plugins && ci.options.plugins.customCenterHoursId) {
+      const centerId = ci.options.plugins.customCenterHoursId;
+      const centerEl = document.getElementById(centerId);
+      if (centerEl) {
+        centerEl.innerText = visibleSum.toFixed(1) + 'h';
+      }
+    }
+  };
+
+  /**
+   * Obsługa interaktywnego kliknięcia w legendę HTML dla Głównego Wykresu (Przeliczanie części wspólnej)
+   */
+  function handleMainLegendClick(type, label, element) {
+    const state = mainChartActiveState[type === 'deck' ? 'decks' : 'areas'];
+    state[label] = !state[label];
+
+    // Zmiana stylizacji elementu legendy (poszarzenie po wyłączeniu)
+    if (state[label]) {
+      element.classList.remove('opacity-40', 'line-through');
+    } else {
+      element.classList.add('opacity-40', 'line-through');
+    }
+
+    updateMainChart();
+  }
+
+  /**
+   * Funkcja aktualizująca i przeliczająca wykres główny na podstawie aktywnych filtrów (część wspólna)
+   */
+  function updateMainChart() {
+    if (!dashboardData || !dashboardData.spisHours) return;
+
+    // Przeliczenie sum dla każdego pokładu uwzględniając tylko aktywne obszary
+    const deckSums = {};
+    mainChartOriginalData.deckLabels.forEach(d => {
+      deckSums[d] = 0;
+    });
+
+    // Przeliczenie sum dla każdego obszaru uwzględniając tylko aktywne pokłady
+    const areaSums = {};
+    mainChartOriginalData.areaLabels.forEach(a => {
+      areaSums[a] = 0;
+    });
+
+    let totalHours = 0;
+
+    dashboardData.spisHours.forEach(item => {
+      const isDeckActive = mainChartActiveState.decks[item.deck];
+      const isAreaActive = mainChartActiveState.areas[item.area];
+
+      // Sumujemy tylko te wpisy, których zarówno pokład jak i obszar są aktywne
+      if (isDeckActive && isAreaActive) {
+        deckSums[item.deck] += item.hours;
+        areaSums[item.area] += item.hours;
+        totalHours += item.hours;
+      }
+    });
+
+    // Przygotowanie przefiltrowanych wartości dla datasetów
+    const updatedDeckValues = mainChartOriginalData.deckLabels.map(l =>
+      mainChartActiveState.decks[l] ? (Math.round(deckSums[l] * 10) / 10) : 0
+    );
+
+    const updatedAreaValues = mainChartOriginalData.areaLabels.map(l =>
+      mainChartActiveState.areas[l] ? (Math.round(areaSums[l] * 10) / 10) : 0
+    );
+
+    // Aktualizacja wykresu
+    mainChartInstance.data.datasets[1].data = updatedDeckValues;
+    mainChartInstance.data.datasets[0].data = updatedAreaValues;
+    mainChartInstance.update();
+
+    // Aktualizacja licznika godzin na środku wykresu
+    const centerEl = document.getElementById('centerChartHours_main');
+    if (centerEl) {
+      centerEl.innerText = totalHours.toFixed(1) + 'h';
+    }
+  }
+
+  /**
+   * Obsługa interaktywnego kliknięcia w legendę HTML dla wykresu EXTRA JOB (Przeliczanie części wspólnej)
+   */
+  function handleExtraLegendClick(type, label, element) {
+    const state = extraChartActiveState[type === 'deck' ? 'decks' : 'areas'];
+    state[label] = !state[label];
+
+    if (state[label]) {
+      element.classList.remove('opacity-40', 'line-through');
+    } else {
+      element.classList.add('opacity-40', 'line-through');
+    }
+
+    updateExtraChart();
+  }
+
+  /**
+   * Funkcja aktualizująca i przeliczająca wykres EXTRA JOB na podstawie aktywnych filtrów (część wspólna)
+   */
+  function updateExtraChart() {
+    const extraChart = deckChartInstances['EXTRA JOB'];
+    if (!extraChart || !dashboardData || !dashboardData.spisHours) return;
+
+    let extraItems = dashboardData.spisHours.filter(item =>
+      item.idPrac && item.idPrac.toUpperCase().includes('- EXTRA JOB')
+    );
+
+    const deckSums = {};
+    extraChartOriginalData.deckLabels.forEach(d => {
+      deckSums[d] = 0;
+    });
+
+    const areaSums = {};
+    extraChartOriginalData.areaLabels.forEach(a => {
+      areaSums[a] = 0;
+    });
+
+    let totalHours = 0;
+
+    extraItems.forEach(item => {
+      const isDeckActive = extraChartActiveState.decks[item.deck];
+      const isAreaActive = extraChartActiveState.areas[item.area];
+
+      if (isDeckActive && isAreaActive) {
+        deckSums[item.deck] += item.hours;
+        areaSums[item.area] += item.hours;
+        totalHours += item.hours;
+      }
+    });
+
+    const updatedDeckValues = extraChartOriginalData.deckLabels.map(l =>
+      extraChartActiveState.decks[l] ? (Math.round(deckSums[l] * 10) / 10) : 0
+    );
+
+    const updatedAreaValues = extraChartOriginalData.areaLabels.map(l =>
+      extraChartActiveState.areas[l] ? (Math.round(areaSums[l] * 10) / 10) : 0
+    );
+
+    extraChart.data.datasets[1].data = updatedDeckValues;
+    extraChart.data.datasets[0].data = updatedAreaValues;
+    extraChart.update();
+
+    const centerEl = document.getElementById('centerChartHours_extra');
+    if (centerEl) {
+      centerEl.innerText = totalHours.toFixed(1) + 'h';
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
-    // Automatyczne ładowanie danych po otwarciu zakładki
     loadDashboardData();
   });
 
@@ -31,6 +218,7 @@
       .withSuccessHandler(data => {
         dashboardData = data;
         updateDashboardKPIs(data);
+        restructureMainChartDOM();
         renderMainProjectChart();
         renderDeckCharts();
       })
@@ -38,14 +226,13 @@
         console.error("Błąd pobierania danych realizacyjnych:", err);
         alert("Błąd podczas ładowania danych: " + err);
       })
-      .getInitialData(); 
+      .getInitialData();
   }
 
   /**
    * Statystyki i górne kafle KPI
    */
   function updateDashboardKPIs(data) {
-    // 1. Całkowity postęp (średnia ważona / postęp globalny)
     const progressEl = document.getElementById('dashTotalProgress');
     if (progressEl) {
       let totalProgress = 0;
@@ -64,14 +251,12 @@
       progressEl.innerText = avgProgress.toFixed(1) + '%';
     }
 
-    // 2. Wypracowane godziny (Suma godzin bezpośrednio ze Spisu prac, sformatowana do 1 miejsca po przecinku)
     const hoursEl = document.getElementById('dashTotalHours');
     if (hoursEl) {
       const hoursVal = data.totalWorkedHours || 0;
       hoursEl.innerText = hoursVal.toFixed(1) + 'h';
     }
 
-    // 3. Statystyki techników
     if (data.techStats) {
       const activeEl = document.getElementById('dashActiveTechs');
       const totalEl = document.getElementById('dashTotalTechs');
@@ -81,39 +266,55 @@
   }
 
   /**
-   * Zmiana trybu wyświetlania głównego wykresu (Pokłady / Obszary)
+   * Dynamiczne przebudowanie DOM dla Głównego Wykresu (Wprowadzenie układu z dwoma kolumnami legendy)
    */
-  function changeMainChartGroup(group) {
-    mainChartGroup = group;
+  function restructureMainChartDOM() {
+    const canvas = document.getElementById('mainProjectChart');
+    if (!canvas) return;
 
-    const btnDeck = document.getElementById('btnGroupDeck');
-    const btnArea = document.getElementById('btnGroupArea');
+    if (document.getElementById('main_deck_legend')) return; // DOM już przebudowany
 
-    if (group === 'deck') {
-      btnDeck.className = "px-4 py-2 rounded-md text-xs font-bold transition-all bg-seaviaBlue text-white shadow-sm";
-      btnArea.className = "px-4 py-2 rounded-md text-xs font-bold transition-all text-slate-600 hover:text-seaviaBlue";
-    } else {
-      btnArea.className = "px-4 py-2 rounded-md text-xs font-bold transition-all bg-seaviaBlue text-white shadow-sm";
-      btnDeck.className = "px-4 py-2 rounded-md text-xs font-bold transition-all text-slate-600 hover:text-seaviaBlue";
+    const parent = canvas.parentElement;
+
+    // Usuwamy duplikujący się zewnętrzny tytuł "Postęp Główny (Z podziałem na Pokłady)" znajdujący się bezpośrednio nad kontenerem
+    const prevEl = parent.previousElementSibling;
+    if (prevEl && prevEl.textContent.includes("Postęp Główny")) {
+      prevEl.remove();
     }
 
-    renderMainProjectChart();
+    parent.className = "w-full bg-white border border-slate-200 rounded-lg shadow-sm p-4 md:p-8 mb-6";
+    parent.innerHTML = `
+      <h3 class="font-black text-seaviaBlue text-base uppercase tracking-wider mb-6 text-center">Postęp Główny (Z podziałem na Pokłady i Obszary)</h3>
+      <div class="flex flex-col md:flex-row items-center justify-between gap-6 w-full">
+        <!-- Lewa kolumna: Legenda Pokładów (Rozłożona na 2 kolumny) -->
+        <div class="w-full md:w-[35%] grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-semibold text-slate-700 max-h-64 overflow-y-auto pr-1" id="main_deck_legend">
+        </div>
+        <!-- Środkowa kolumna: Dwupoziomowy wykres kołowy -->
+        <div class="relative w-full md:w-[40%] h-64 flex items-center justify-center">
+          <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-2">
+            <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Godziny</span>
+            <span id="centerChartHours_main" class="text-2xl font-black text-seaviaBlue">0.0h</span>
+          </div>
+          <canvas id="mainProjectChart"></canvas>
+        </div>
+        <!-- Prawa kolumna: Legenda Obszarów (1 kolumna) -->
+        <div class="w-full md:w-[25%] flex flex-col gap-1.5 text-xs font-semibold text-slate-700 max-h-64 overflow-y-auto pr-1" id="main_area_legend">
+        </div>
+      </div>
+    `;
+
+    // Ukrywamy/usuwamy stare przyciski przełączania widoków
+    const switcherGroup = document.getElementById('btnGroupDeck')?.parentElement;
+    if (switcherGroup) {
+      switcherGroup.remove();
+    }
   }
 
   /**
-   * Zmiana trybu grupowania dla wykresu EXTRA JOB
-   */
-  function changeExtraJobGroup(group) {
-    extraJobGroup = group;
-    renderDeckCharts(); // Przeładuj wykresy szczegółowe, by odświeżyć Extra Job
-  }
-
-  /**
-   * Renderowanie Głównego Wykresu Pierścieniowego (100% spójny ze Spisem prac)
+   * Renderowanie Głównego Wykresu Pierścieniowego (Nested Doughnut: Pokłady wewnątrz, Obszary na zewnątrz)
    */
   function renderMainProjectChart() {
     if (!dashboardData || !dashboardData.spisHours) return;
-
     const canvas = document.getElementById('mainProjectChart');
     if (!canvas) return;
 
@@ -122,21 +323,58 @@
       mainChartInstance.destroy();
     }
 
-    let aggregatedData = {};
+    let deckData = {};
+    let areaData = {};
     let totalHours = 0;
 
-    // Pobieramy godziny bezpośrednio ze spisHours (pełne odzwierciedlenie bazy)
     dashboardData.spisHours.forEach(item => {
       const hours = item.hours || 0;
       if (hours > 0) {
-        const key = mainChartGroup === 'deck' ? item.deck : item.area;
-        aggregatedData[key] = (aggregatedData[key] || 0) + hours;
+        deckData[item.deck] = (deckData[item.deck] || 0) + hours;
+        areaData[item.area] = (areaData[item.area] || 0) + hours;
         totalHours += hours;
       }
     });
 
-    const labels = Object.keys(aggregatedData);
-    const values = Object.values(aggregatedData).map(v => Math.round(v * 10) / 10);
+    const deckLabels = Object.keys(deckData);
+    const deckValues = Object.values(deckData).map(v => Math.round(v * 10) / 10);
+    const deckColors = getColors(deckLabels.length);
+
+    const areaLabels = Object.keys(areaData);
+    const areaValues = Object.values(areaData).map(v => Math.round(v * 10) / 10);
+    const areaColors = getColors(areaLabels.length).reverse();
+
+    // Zachowaj oryginalne dane do obsługi interaktywnej legendy
+    mainChartOriginalData = { deckLabels, deckValues, areaLabels, areaValues };
+
+    deckLabels.forEach(l => mainChartActiveState.decks[l] = true);
+    areaLabels.forEach(l => mainChartActiveState.areas[l] = true);
+
+    // Renderowanie legendy HTML - Pokłady (Lewa strona - 2 kolumny)
+    let deckLegendHtml = `<span class="col-span-2 text-[10px] text-slate-400 uppercase font-black tracking-wider border-b pb-1 mb-1">Pokłady</span>`;
+    deckLabels.forEach((label, i) => {
+      const color = deckColors[i];
+      deckLegendHtml += `
+        <div class="flex items-center gap-2 py-1 px-1.5 rounded hover:bg-slate-100 cursor-pointer transition-all truncate" onclick="handleMainLegendClick('deck', '${label}', this)">
+          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${color}"></span>
+          <span class="truncate font-medium" title="${label}">${label}</span>
+        </div>
+      `;
+    });
+    document.getElementById('main_deck_legend').innerHTML = deckLegendHtml;
+
+    // Renderowanie legendy HTML - Obszary (Prawa strona - 1 kolumna)
+    let areaLegendHtml = `<span class="text-[10px] text-slate-400 uppercase font-black tracking-wider border-b pb-1 mb-1">Obszary</span>`;
+    areaLabels.forEach((label, i) => {
+      const color = areaColors[i];
+      areaLegendHtml += `
+        <div class="flex items-center gap-2 py-1 px-1.5 rounded hover:bg-slate-100 cursor-pointer transition-all truncate" onclick="handleMainLegendClick('area', '${label}', this)">
+          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${color}"></span>
+          <span class="truncate font-medium" title="${label}">${label}</span>
+        </div>
+      `;
+    });
+    document.getElementById('main_area_legend').innerHTML = areaLegendHtml;
 
     const centerHoursEl = document.getElementById('centerChartHours_main');
     if (centerHoursEl) {
@@ -146,36 +384,39 @@
     mainChartInstance = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: labels,
-        datasets: [{
-          data: values,
-          backgroundColor: CHART_COLORS.slice(0, labels.length),
-          borderWidth: 2,
-          hoverOffset: 4
-        }]
+        datasets: [
+          {
+            label: 'Obszary (Zewnętrzny)',
+            data: areaValues,
+            backgroundColor: areaColors,
+            borderWidth: 1.5,
+            hoverOffset: 4
+          },
+          {
+            label: 'Pokłady (Wewnętrzny)',
+            data: deckValues,
+            backgroundColor: deckColors,
+            borderWidth: 1.5,
+            hoverOffset: 4
+          }
+        ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '70%',
+        cutout: '50%',
         plugins: {
           legend: {
-            position: 'bottom',
-            labels: {
-              boxWidth: 12,
-              font: { size: 10, weight: 'bold' },
-              padding: 15
-            }
+            display: false // Wyłączamy standardową legendę
           },
           tooltip: {
             callbacks: {
               label: function(context) {
-                let label = context.label || '';
-                if (label) label += ': ';
-                if (context.parsed !== null) {
-                  label += context.parsed.toFixed(1) + 'h';
-                }
-                return label;
+                const datasetIndex = context.datasetIndex; // 0 = Obszary, 1 = Pokłady
+                const index = context.dataIndex;
+                const label = datasetIndex === 0 ? areaLabels[index] : deckLabels[index];
+                const val = context.raw;
+                return `${context.dataset.label.split(' ')[0]} - ${label}: ${val.toFixed(1)}h`;
               }
             }
           }
@@ -185,7 +426,7 @@
   }
 
   /**
-   * Renderowanie Wykresów Szczegółowych dla Pokładów (w tym EXTRA JOB, BREAK, TRAVEL)
+   * Renderowanie Wykresów Szczegółowych dla Pokładów (w tym EXTRA JOB jako duży wykres na dole, BREAK, TRAVEL)
    */
   function renderDeckCharts() {
     const container = document.getElementById('deckChartsContainer');
@@ -198,7 +439,7 @@
     });
     deckChartInstances = {};
 
-    // 1. Grupowanie wszystkich godzin z bazy dla standardowych pokładów
+    // 1. Grupowanie standardowych pokładów
     let deckHours = {};
     dashboardData.spisHours.forEach(item => {
       let dUpper = item.deck.toUpperCase();
@@ -210,10 +451,9 @@
       }
     });
 
-    // 2. Wyliczanie godzin dla TRAVEL oraz BREAK bezpośrednio ze Spisu prac
+    // 2. Wyliczanie sum godzin dla TRAVEL i BREAK
     let travelHours = 0;
     let breakHours = 0;
-
     dashboardData.spisHours.forEach(item => {
       let dUpper = item.deck.toUpperCase();
       if (dUpper === 'TRAVEL') {
@@ -223,8 +463,7 @@
       }
     });
 
-    // 3. Określamy i sortujemy listę pokładów
-    // Logika sortowania: Standardowe pokłady od najniższego do najwyższego -> EXTRA JOB -> BREAK -> TRAVEL
+    // 3. Określamy standardowe pokłady i sortujemy je
     let standardDecks = Object.keys(deckHours).sort((a, b) => {
       let numA = parseInt(a.replace(/\D/g, '')) || 0;
       let numB = parseInt(b.replace(/\D/g, '')) || 0;
@@ -232,36 +471,22 @@
       return a.localeCompare(b);
     });
 
-    let allDecksToShow = [...standardDecks];
+    let decksToRenderInGrid = [...standardDecks];
+    if (breakHours > 0) decksToRenderInGrid.push('BREAK');
+    if (travelHours > 0) decksToRenderInGrid.push('TRAVEL');
 
-    // Sprawdzamy, czy w ogóle mamy prace dodatkowe "- Extra Job"
-    let hasExtraJob = dashboardData.spisHours.some(item => 
-      item.idPrac && item.idPrac.toUpperCase().includes('- EXTRA JOB')
-    );
-
-    if (hasExtraJob) {
-      allDecksToShow.push('EXTRA JOB');
-    }
-
-    if (breakHours > 0) allDecksToShow.push('BREAK');
-    if (travelHours > 0) allDecksToShow.push('TRAVEL');
-
-    // 4. Dynamiczne tworzenie kart i rysowanie wykresów
-    allDecksToShow.forEach((deckName) => {
+    // 4. Renderowanie standardowych pokładów w siatce (Grid)
+    decksToRenderInGrid.forEach((deckName) => {
       const cardId = `deckCard_${deckName.replace(/\s+/g, '_')}`;
       const canvasId = `chart_${deckName.replace(/\s+/g, '_')}`;
       const centerHoursId = `hours_${deckName.replace(/\s+/g, '_')}`;
-
-      // Wyliczanie postępu / etykiety pomocniczej
       let progressPill = '';
-      if (deckName === 'EXTRA JOB') {
-        progressPill = `<span class="text-[10px] bg-amber-100 text-amber-700 font-bold px-2 py-1 rounded">Extra</span>`;
-      } else if (deckName === 'TRAVEL') {
+
+      if (deckName === 'TRAVEL') {
         progressPill = `<span class="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded">Travel</span>`;
       } else if (deckName === 'BREAK') {
         progressPill = `<span class="text-[10px] bg-red-100 text-red-700 font-bold px-2 py-1 rounded">Break</span>`;
       } else {
-        // Liczymy średni postęp dla pokładu z tasksTree (Candido)
         let totalProgress = 0;
         let taskCount = 0;
         if (dashboardData.tasksTree && dashboardData.tasksTree[deckName]) {
@@ -276,73 +501,28 @@
         progressPill = `<span class="text-[10px] bg-slate-100 text-slate-500 font-bold px-2 py-1 rounded">Postęp: ${progressVal}%</span>`;
       }
 
-      // Nagłówek karty z ewentualnym przełącznikiem dla EXTRA JOB
-      let cardHeaderHtml = ``;
-      if (deckName === 'EXTRA JOB') {
-        let activeDeckClass = extraJobGroup === 'deck' 
-          ? "px-2 py-0.5 rounded text-[9px] font-bold transition-all bg-seaviaBlue text-white shadow-sm"
-          : "px-2 py-0.5 rounded text-[9px] font-bold transition-all text-slate-600 hover:text-seaviaBlue";
-
-        let activeAreaClass = extraJobGroup === 'area' 
-          ? "px-2 py-0.5 rounded text-[9px] font-bold transition-all bg-seaviaBlue text-white shadow-sm"
-          : "px-2 py-0.5 rounded text-[9px] font-bold transition-all text-slate-600 hover:text-seaviaBlue";
-
-        cardHeaderHtml = `
-          <div class="flex justify-between items-center mb-4">
-            <h4 class="font-bold text-seaviaBlue text-sm uppercase tracking-wider">${deckName}</h4>
-            <div class="flex bg-slate-100 rounded p-0.5 gap-1">
-              <button onclick="changeExtraJobGroup('deck')" class="${activeDeckClass}">Pokłady</button>
-              <button onclick="changeExtraJobGroup('area')" class="${activeAreaClass}">Obszary</button>
-            </div>
-          </div>
-        `;
-      } else {
-        cardHeaderHtml = `
+      let cardHtml = `
+        <div class="bg-white border border-slate-200 rounded-lg shadow-sm p-4 flex flex-col justify-between" id="${cardId}">
           <div class="flex justify-between items-center mb-4">
             <h4 class="font-bold text-seaviaBlue text-sm uppercase tracking-wider">${deckName}</h4>
             ${progressPill}
           </div>
-        `;
-      }
-
-      let cardHtml = `
-        <div class="bg-white border border-slate-200 rounded-lg shadow-sm p-4 flex flex-col justify-between" id="${cardId}">
-          ${cardHeaderHtml}
           <div class="relative w-full h-48 mx-auto">
             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-2">
               <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Godziny</span>
-              <span id="${centerHoursId}" class="text-lg font-bold text-seaviaBlue">0h</span>
+              <span id="${centerHoursId}" class="text-lg font-bold text-seaviaBlue">0.0h</span>
             </div>
             <canvas id="${canvasId}"></canvas>
           </div>
         </div>
       `;
-
       container.insertAdjacentHTML('beforeend', cardHtml);
 
-      // Agregacja danych do wykresu dla konkretnej karty
       let labels = [];
       let values = [];
       let totalDeckHours = 0;
 
-      if (deckName === 'EXTRA JOB') {
-        // Agregujemy tylko wpisy z dopiskiem " - Extra Job" w ID prac (kolumna G)
-        let extraItems = dashboardData.spisHours.filter(item => 
-          item.idPrac && item.idPrac.toUpperCase().includes('- EXTRA JOB')
-        );
-
-        let extraGroup = {};
-        extraItems.forEach(item => {
-          let key = extraJobGroup === 'deck' ? item.deck : item.area;
-          extraGroup[key] = (extraGroup[key] || 0) + item.hours;
-        });
-
-        labels = Object.keys(extraGroup);
-        values = Object.values(extraGroup).map(v => Math.round(v * 10) / 10);
-        totalDeckHours = values.reduce((a, b) => a + b, 0);
-
-      } else if (deckName === 'TRAVEL') {
-        // Wykres Travel z podziałem na obszary (kolumna E)
+      if (deckName === 'TRAVEL') {
         let travelItems = dashboardData.spisHours.filter(item => item.deck.toUpperCase() === 'TRAVEL');
         let travelGroup = {};
         travelItems.forEach(item => {
@@ -351,9 +531,7 @@
         labels = Object.keys(travelGroup);
         values = Object.values(travelGroup).map(v => Math.round(v * 10) / 10);
         totalDeckHours = travelHours;
-
       } else if (deckName === 'BREAK') {
-        // Wykres Break z podziałem na obszary (kolumna E)
         let breakItems = dashboardData.spisHours.filter(item => item.deck.toUpperCase() === 'BREAK');
         let breakGroup = {};
         breakItems.forEach(item => {
@@ -362,22 +540,18 @@
         labels = Object.keys(breakGroup);
         values = Object.values(breakGroup).map(v => Math.round(v * 10) / 10);
         totalDeckHours = breakHours;
-
       } else {
-        // Standardowy pokład - agregujemy wszystkie powiązane godziny ze Spisu prac wg Obszarów (Area)
         const areas = deckHours[deckName] || {};
         labels = Object.keys(areas);
         values = Object.values(areas).map(v => Math.round(v * 10) / 10);
         totalDeckHours = values.reduce((a, b) => a + b, 0);
       }
 
-      // Aktualizacja godzin na środku pierścienia
       const centerHoursEl = document.getElementById(centerHoursId);
       if (centerHoursEl) {
         centerHoursEl.innerText = totalDeckHours.toFixed(1) + 'h';
       }
 
-      // Rysowanie wykresu pierścieniowego przy użyciu Chart.js
       const ctx = document.getElementById(canvasId).getContext('2d');
       deckChartInstances[deckName] = new Chart(ctx, {
         type: 'doughnut',
@@ -385,7 +559,7 @@
           labels: labels,
           datasets: [{
             data: values,
-            backgroundColor: CHART_COLORS.slice(0, labels.length),
+            backgroundColor: getColors(labels.length),
             borderWidth: 1.5
           }]
         },
@@ -394,8 +568,10 @@
           maintainAspectRatio: false,
           cutout: '75%',
           plugins: {
+            customCenterHoursId: centerHoursId,
             legend: {
               position: 'bottom',
+              onClick: legendClickHandler,
               labels: {
                 boxWidth: 10,
                 font: { size: 9, weight: 'bold' },
@@ -418,5 +594,142 @@
         }
       });
     });
+
+    // 5. Renderowanie dużego wykresu kołowego EXTRA JOB pod wszystkimi pokładami
+    let extraItems = dashboardData.spisHours.filter(item =>
+      item.idPrac && item.idPrac.toUpperCase().includes('- EXTRA JOB')
+    );
+    let hasExtraJob = extraItems.length > 0;
+
+    // Usunięcie starej karty Extra Job, jeśli istniała, by uniknąć duplikatów
+    const oldExtraCard = document.getElementById('extraJobLargeCard');
+    if (oldExtraCard) {
+      oldExtraCard.remove();
+    }
+
+    if (hasExtraJob) {
+      const parentContainer = container.parentElement;
+      parentContainer.insertAdjacentHTML('beforeend', `
+        <div id="extraJobLargeCard" class="bg-white border border-slate-200 rounded-lg shadow-sm p-4 md:p-8 mt-6">
+          <h3 class="font-black text-seaviaBlue text-base uppercase tracking-wider mb-6 text-center">ANNUAL TIME REPORT - EXTRA JOB</h3>
+
+          <div class="flex flex-col md:flex-row items-center justify-between gap-6 w-full">
+            <!-- Lewa kolumna: Legenda Pokładów (Rozłożona na 2 kolumny) -->
+            <div class="w-full md:w-[35%] grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-semibold text-slate-700 max-h-64 overflow-y-auto pr-1" id="extra_deck_legend">
+            </div>
+            <!-- Środkowa kolumna: Dwupoziomowy wykres kołowy -->
+            <div class="relative w-full md:w-[40%] h-64 flex items-center justify-center">
+              <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pb-2">
+                <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Godziny</span>
+                <span id="centerChartHours_extra" class="text-2xl font-black text-seaviaBlue">0.0h</span>
+              </div>
+              <canvas id="extraJobChartCanvas"></canvas>
+            </div>
+            <!-- Prawa kolumna: Legenda Obszarów (1 kolumna) -->
+            <div class="w-full md:w-[25%] flex flex-col gap-1.5 text-xs font-semibold text-slate-700 max-h-64 overflow-y-auto pr-1" id="extra_area_legend">
+            </div>
+          </div>
+        </div>
+      `);
+
+      let extraDeckData = {};
+      let extraAreaData = {};
+      let totalExtraHours = 0;
+
+      extraItems.forEach(item => {
+        extraDeckData[item.deck] = (extraDeckData[item.deck] || 0) + item.hours;
+        extraAreaData[item.area] = (extraAreaData[item.area] || 0) + item.hours;
+        totalExtraHours += item.hours;
+      });
+
+      const extraDeckLabels = Object.keys(extraDeckData);
+      const extraDeckValues = Object.values(extraDeckData).map(v => Math.round(v * 10) / 10);
+      const extraDeckColors = getColors(extraDeckLabels.length);
+
+      const extraAreaLabels = Object.keys(extraAreaData);
+      const extraAreaValues = Object.values(extraAreaData).map(v => Math.round(v * 10) / 10);
+      const extraAreaColors = getColors(extraAreaLabels.length).reverse();
+
+      // Zapisujemy stany aktywności i oryginalne dane
+      extraChartOriginalData = { deckLabels: extraDeckLabels, deckValues: extraDeckValues, areaLabels: extraAreaLabels, areaValues: extraAreaValues };
+      extraDeckLabels.forEach(l => extraChartActiveState.decks[l] = true);
+      extraAreaLabels.forEach(l => extraChartActiveState.areas[l] = true);
+
+      // Renderowanie legendy HTML dla EXTRA JOB - Pokłady (Lewa strona - 2 kolumny)
+      let extraDeckLegendHtml = `<span class="col-span-2 text-[10px] text-slate-400 uppercase font-black tracking-wider border-b pb-1 mb-1">Pokłady</span>`;
+      extraDeckLabels.forEach((label, i) => {
+        const color = extraDeckColors[i];
+        extraDeckLegendHtml += `
+          <div class="flex items-center gap-2 py-1 px-1.5 rounded hover:bg-slate-100 cursor-pointer transition-all truncate" onclick="handleExtraLegendClick('deck', '${label}', this)">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${color}"></span>
+            <span class="truncate font-medium" title="${label}">${label}</span>
+          </div>
+        `;
+      });
+      document.getElementById('extra_deck_legend').innerHTML = extraDeckLegendHtml;
+
+      // Renderowanie legendy HTML dla EXTRA JOB - Obszary (Prawa strona - 1 kolumna)
+      let extraAreaLegendHtml = `<span class="text-[10px] text-slate-400 uppercase font-black tracking-wider border-b pb-1 mb-1">Obszary</span>`;
+      extraAreaLabels.forEach((label, i) => {
+        const color = extraAreaColors[i];
+        extraAreaLegendHtml += `
+          <div class="flex items-center gap-2 py-1 px-1.5 rounded hover:bg-slate-100 cursor-pointer transition-all truncate" onclick="handleExtraLegendClick('area', '${label}', this)">
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${color}"></span>
+            <span class="truncate font-medium" title="${label}">${label}</span>
+          </div>
+        `;
+      });
+      document.getElementById('extra_area_legend').innerHTML = extraAreaLegendHtml;
+
+      const centerExtraHoursEl = document.getElementById('centerChartHours_extra');
+      if (centerExtraHoursEl) {
+        centerExtraHoursEl.innerText = totalExtraHours.toFixed(1) + 'h';
+      }
+
+      // Rysowanie wykresu EXTRA JOB (Nested Doughnut)
+      const extraCtx = document.getElementById('extraJobChartCanvas').getContext('2d');
+      deckChartInstances['EXTRA JOB'] = new Chart(extraCtx, {
+        type: 'doughnut',
+        data: {
+          datasets: [
+            {
+              label: 'Obszary (Zewnętrzny)',
+              data: extraAreaValues,
+              backgroundColor: extraAreaColors,
+              borderWidth: 1.5,
+              hoverOffset: 4
+            },
+            {
+              label: 'Pokłady (Wewnętrzny)',
+              data: extraDeckValues,
+              backgroundColor: extraDeckColors,
+              borderWidth: 1.5,
+              hoverOffset: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '50%',
+          plugins: {
+            legend: {
+              display: false // Wyłączona domyślna legenda
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const datasetIndex = context.datasetIndex; // 0 = Obszary, 1 = Pokłady
+                  const index = context.dataIndex;
+                  const label = datasetIndex === 0 ? extraAreaLabels[index] : extraDeckLabels[index];
+                  const val = context.raw;
+                  return `${context.dataset.label.split(' ')[0]} - ${label}: ${val.toFixed(1)}h`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
   }
 </script>

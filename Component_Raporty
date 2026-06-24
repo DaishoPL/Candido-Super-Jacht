@@ -459,6 +459,7 @@
       alert("Trwa ładowanie biblioteki PDF. Spróbuj ponownie za chwilę.");
       return;
     }
+
     window.scrollTo(0, 0);
     setTimeout(() => {
       const element = document.getElementById('reportContent');

@@ -162,7 +162,6 @@ function getInitialData() {
           let diffTime = Math.abs(plannedEnd - plannedStart);
           plannedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
         }
-
         let rawProgress = data[i][15];
         let progressNum = 0;
         if (typeof rawProgress === 'number') {
@@ -178,7 +177,6 @@ function getInitialData() {
         if (areaVal !== "") currentArea = areaVal;
         if (currentDeck === "" || taskName === "") continue;
         let area = currentArea === "" ? "Brak strefy" : currentArea;
-
         if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {};
         if (!tasksTree[currentDeck][area]) tasksTree[currentDeck][area] = [];
         
@@ -186,7 +184,6 @@ function getInitialData() {
         let key = currentDeck + "_" + taskName;
         let taskHours = workedHoursByTask[key] || 0;
         taskHours = Math.round(taskHours * 10) / 10;
-
         tasksTree[currentDeck][area].push({
           row: i + 1,
           taskId: taskId, // Przekazujemy ID prac dla prawidłowego filtrowania Extra Job
@@ -252,7 +249,7 @@ function getTasksForTechnicians(techNamesArray, dateStr) {
       });
     }
   }
-  
+
   tasks.sort((a, b) => {
     let nameCmp = a.techName.localeCompare(b.techName);
     if (nameCmp !== 0) return nameCmp;
@@ -450,7 +447,6 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return { decks: {}, weekInfo: {} };
-
   let selectedDate = new Date(dateStr);
   let dayOfWeek = selectedDate.getDay();
   let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
@@ -470,7 +466,7 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
       target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
   }
   let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
-  
+
   let reportData = {
     settings: { includeBreaks: includeBreaks },
     weekInfo: {
@@ -481,7 +477,6 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
     decks: {},
     allTasks: []
   };
-
   let uniqueTasks = new Set();
   const sheetCandido = ss.getSheetByName('Candido');
   if (sheetCandido && sheetCandido.getLastRow() >= 3) {
@@ -493,7 +488,6 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
       }
     });
   }
-
   const spisData = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 1).getValues();
   for (let i = 0; i < spisData.length; i++) {
@@ -527,7 +521,15 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
       }
     }
   }
-  reportData.allTasks = Array.from(uniqueTasks).sort((a, b) => a.localeCompare(b));
+
+  // POPRAWKA: Sortowanie unikalnych zadań - zadania z "Extra Job" lądują na samym dole
+  reportData.allTasks = Array.from(uniqueTasks).sort((a, b) => {
+    const aIsExtra = a.toLowerCase().includes("extra job");
+    const bIsExtra = b.toLowerCase().includes("extra job");
+    if (aIsExtra && !bIsExtra) return 1;
+    if (!aIsExtra && bIsExtra) return -1;
+    return a.localeCompare(b);
+  });
 
   Object.keys(reportData.decks).forEach(d => {
     Object.keys(reportData.decks[d].tasks).forEach(t => {
@@ -552,14 +554,12 @@ function getTimeByWeekReport(includeBreaks) {
       }
     });
   }
-
   let reportData = {
     settings: { includeBreaks: includeBreaks },
     decks: {},
     allTasks: projectTasks,
     allWeeks: new Set()
   };
-
   const spisData = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 1).getValues();
   const getWeekNumber = (d) => {
@@ -569,7 +569,6 @@ function getTimeByWeekReport(includeBreaks) {
     var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
     return weekNo;
   };
-
   for (let i = 0; i < spisData.length; i++) {
     let rowDate = rawDates[i][0];
     if (!(rowDate instanceof Date)) continue;
@@ -607,9 +606,16 @@ function getTimeByWeekReport(includeBreaks) {
     }
   }
 
-  reportData.allTasks = Array.from(reportData.allTasks).sort((a, b) => a.localeCompare(b));
-  reportData.allWeeks = Array.from(reportData.allWeeks);
+  // POPRAWKA: Sortowanie unikalnych zadań - zadania z "Extra Job" lądują na samym dole
+  reportData.allTasks = Array.from(reportData.allTasks).sort((a, b) => {
+    const aIsExtra = a.toLowerCase().includes("extra job");
+    const bIsExtra = b.toLowerCase().includes("extra job");
+    if (aIsExtra && !bIsExtra) return 1;
+    if (!aIsExtra && bIsExtra) return -1;
+    return a.localeCompare(b);
+  });
 
+  reportData.allWeeks = Array.from(reportData.allWeeks);
   Object.keys(reportData.decks).forEach(d => {
      Object.keys(reportData.decks[d].tasks).forEach(t => {
        let task = reportData.decks[d].tasks[t];
@@ -627,7 +633,6 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return null;
-
   let selectedDate = new Date(dateStr);
   let dayOfWeek = selectedDate.getDay();
   let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
@@ -646,7 +651,6 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
   if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
   let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
   let year = target.getFullYear();
-
   let reportData = {
     weekInfo: {
       weekNumber: weekNum,
@@ -655,7 +659,6 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
     },
     technicians: {}
   };
-
   const spisData = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 1).getValues();
   for (let i = 0; i < spisData.length; i++) {
@@ -695,7 +698,6 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
       reportData.technicians[techName].totalHours += duration;
     }
   }
-
   // Zaokrąglenie łącznych godzin techników
   Object.keys(reportData.technicians).forEach(techName => {
     reportData.technicians[techName].totalHours = Math.round(reportData.technicians[techName].totalHours * 10) / 10;
@@ -710,7 +712,6 @@ function generateStyledExcelReport(reportData, reportType) {
     const baseName = "Candido_" + (isWeekly ? reportData.weekInfo.weekNumber : 'Annual') + "_Report";
     const tempFileName = baseName + "_TEMP_" + Date.now();
     const targetFolder = DriveApp.getFolderById(TARGET_FOLDER_ID);
-
     // 1. Tworzymy tymczasowy Arkusz Google bezpośrednio w folderze docelowym
     const spreadsheet = SpreadsheetApp.create(tempFileName);
     const tempFile = DriveApp.getFileById(spreadsheet.getId());
@@ -718,20 +719,16 @@ function generateStyledExcelReport(reportData, reportType) {
     
     const sheet = spreadsheet.getSheets()[0];
     sheet.setName(isWeekly ? "Weekly Report" : "Annual Report");
-
     const headerColor = "#f1f5f9";
     const totalHeaderColor = "#e2e8f0";
     const seaviaBlue = "#0f3460";
     const lightGreen = "#dcfce7";
     const green = "#bbf7d0";
     const borderColor = "#cbd5e1";
-
     let currentRow = 1;
-
     sheet.getRange(currentRow, 1, 1, 2).setValues([["Project name:", "REV OCEAN 19577"]]).setFontWeight("bold");
     sheet.getRange(currentRow, 2).setFontColor(seaviaBlue).setHorizontalAlignment("right");
     currentRow++;
-
     if (isWeekly) {
       sheet.getRange(currentRow, 1, 1, 2).setValues([["Week no.:", reportData.weekInfo.weekNumber]]).setFontWeight("bold");
       sheet.getRange(currentRow, 2).setFontColor(seaviaBlue).setHorizontalAlignment("right");
@@ -744,18 +741,14 @@ function generateStyledExcelReport(reportData, reportType) {
       sheet.getRange(currentRow, 2).setHorizontalAlignment("right");
       currentRow++;
     }
-
     sheet.getRange(currentRow, 1, 1, 2).setValues([["Paid Breaks:", reportData.settings.includeBreaks ? "YES" : "NO"]]).setFontWeight("bold");
     sheet.getRange(currentRow, 2).setFontColor(reportData.settings.includeBreaks ? "#166534" : "#94a3b8").setHorizontalAlignment("right");
     currentRow += 2;
-
     Object.keys(reportData.decks).sort().forEach(deckName => {
       let deckData = reportData.decks[deckName];
       if (!deckData.tasks || Object.keys(deckData.tasks).length === 0) return;
-
       sheet.getRange(currentRow, 1).setValue(isWeekly ? "WEEKLY SUM " + deckName : "ANNUAL TIME REPORT - " + deckName).setFontWeight("bold").setFontColor(seaviaBlue);
       currentRow++;
-
       let headers = ["No.", "Tasks", "Total"];
       let columnCount;
       if (isWeekly) {
@@ -766,14 +759,13 @@ function generateStyledExcelReport(reportData, reportType) {
         sortedWeeks.forEach(w => headers.push("W" + w));
         columnCount = 3 + sortedWeeks.length;
       }
-
       if (columnCount > 0) {
         let headerRange = sheet.getRange(currentRow, 1, 1, columnCount);
         headerRange.setValues([headers]).setBackground(headerColor).setFontWeight("bold");
         sheet.getRange(currentRow, 3).setBackground(totalHeaderColor);
       }
       currentRow++;
-
+      
       const renderRow = (taskName, index) => {
         let rowData = [index, taskName];
         if (isWeekly) {
@@ -789,9 +781,9 @@ function generateStyledExcelReport(reportData, reportType) {
             rowData.push(h > 0 ? h : 0);
           });
         }
-
         if (rowData.length > 2) {
-          sheet.getRange(currentRow, 1, 1, rowData.length).setValues([rowData]).setNumberFormat("0.0");
+          let rowRange = sheet.getRange(currentRow, 1, 1, rowData.length);
+          rowRange.setValues([rowData]).setNumberFormat("0.0");
           sheet.getRange(currentRow, 1, 1, 2).setNumberFormat("0");
           sheet.getRange(currentRow, 2).setHorizontalAlignment("left");
           
@@ -802,25 +794,38 @@ function generateStyledExcelReport(reportData, reportType) {
             let cell = sheet.getRange(currentRow, i);
             if (cell.getValue() > 0) cell.setBackground(lightGreen).setFontWeight("bold");
           }
+
+          // POPRAWKA: Wyróżnienie czcionki na czerwono dla zadań "Extra Job"
+          if (taskName.toLowerCase().includes("- extra job")) {
+            rowRange.setFontColor("#dc2626"); // Czerwona czcionka
+          }
         }
         currentRow++;
       };
-
+      
       // ZADANIE SUPERVISION JEST RENDEROWANE ZAWSZE NA SAMEJ GÓRZE (POZYCJA 0)
       renderRow("Supervision", 0);
-
       let taskIndex = 1;
       let filteredTasks = reportData.allTasks;
       if (!reportData.settings.includeBreaks) {
         filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
       }
+
+      // POPRAWKA: Sortowanie unikalnych zadań - zadania z "Extra Job" lądują na samym dole tabeli
+      filteredTasks.sort((a, b) => {
+        const aIsExtra = a.toLowerCase().includes("extra job");
+        const bIsExtra = b.toLowerCase().includes("extra job");
+        if (aIsExtra && !bIsExtra) return 1;
+        if (!aIsExtra && bIsExtra) return -1;
+        return a.localeCompare(b);
+      });
+
       filteredTasks.forEach(taskName => {
         // Renderujemy unikalne zadania (nawet o wartości 0)
         if (taskName !== "Supervision") {
           renderRow(taskName, taskIndex++);
         }
       });
-
       // Wyliczamy faktyczną liczbę wygenerowanych wierszy danych na tym pokładzie
       let renderedRowCount = taskIndex;
       if (renderedRowCount > 0) {
@@ -831,14 +836,11 @@ function generateStyledExcelReport(reportData, reportType) {
           tableRange.setBorder(true, true, true, true, true, true, borderColor, SpreadsheetApp.BorderStyle.SOLID);
         }
       }
-
       sheet.setColumnWidth(2, 250);
       currentRow += 2;
     });
-
     // Wymuszamy natychmiastowe zrzucenie stylów i danych do arkusza Google Sheets przed konwersją
     SpreadsheetApp.flush();
-
     // 2. Eksport pliku do formatu Excel (.xlsx) za pomocą wewnętrznego API Google
     const url = "https://docs.google.com/spreadsheets/d/" + spreadsheet.getId() + "/export?format=xlsx";
     const token = ScriptApp.getOAuthToken();
@@ -848,19 +850,14 @@ function generateStyledExcelReport(reportData, reportType) {
       },
       muteHttpExceptions: true
     });
-
     if (response.getResponseCode() !== 200) {
       throw new Error("Błąd podczas konwersji arkusza do formatu Excel (.xlsx): " + response.getContentText());
     }
-
     const excelBlob = response.getBlob().setName(`${baseName}.xlsx`);
-
     // 3. Zapisujemy ostateczny plik Excel (.xlsx) w Twoim docelowym folderze na Google Drive
     const excelFile = targetFolder.createFile(excelBlob);
-
     // 4. Usuwamy tymczasowy Arkusz Google Sheets, aby nie robić bałaganu na Dysku
     tempFile.setTrashed(true);
-
     // 5. Zwracamy bezpośredni link do pobrania pliku Excel (.xlsx) z Dysku Google
     const downloadUrl = `https://drive.google.com/uc?export=download&id=${excelFile.getId()}`;
     return {

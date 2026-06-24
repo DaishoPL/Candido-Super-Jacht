@@ -1,0 +1,202 @@
+<div class="bg-white rounded-lg shadow-sm p-4 md:p-8 border border-gray-100 animate-fade-in">
+  <!-- Nagłówek Komponentu -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-seaviaBlue">
+        <i class="fa-solid fa-wallet mr-2 text-candidoRed"></i> Rejestracja Kosztów i Rachunków
+      </h2>
+      <p class="text-sm text-slate-500 mt-1">Dodaj paragony, faktury oraz inne wydatki bezpośrednio do archiwum projektu.</p>
+    </div>
+    <!-- Link do folderu na Google Drive -->
+    <a href="https://drive.google.com/drive/folders/1dtvg-bx_ePiMfsuf2kf0vGadlzNgHeeI?usp=drive_link" 
+       target="_blank" 
+       class="w-full md:w-auto bg-slate-100 hover:bg-slate-200 text-seaviaBlue font-bold py-2.5 px-4 rounded text-xs transition-all flex items-center justify-center border border-slate-200 shadow-sm">
+      <i class="fa-solid fa-folder-open mr-2 text-amber-500"></i> Otwórz folder rachunków <i class="fa-solid fa-arrow-up-right-from-square ml-1.5 opacity-60"></i>
+    </a>
+  </div>
+
+  <!-- Formularz Dodawania Kosztu -->
+  <form id="costForm" onsubmit="saveCost(event)" class="max-w-2xl mx-auto bg-slate-50 p-6 rounded-lg border border-slate-200">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <!-- Pole: Nazwa kosztu -->
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nazwa Kosztu / Opis</label>
+        <input type="text" id="costName" required placeholder="np. Klej, profile, drobne narzędzia" 
+               class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
+      </div>
+
+      <!-- Pole: Data kosztu -->
+      <div>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data Kosztu</label>
+        <input type="date" id="costDate" required 
+               class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
+      </div>
+    </div>
+
+    <!-- Sekcja załączników / plików -->
+    <div class="mb-6">
+      <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Załącznik (Zdjęcie, PDF lub Paragon)</label>
+      
+      <!-- Ukryte natywne inputy plików -->
+      <!-- capture="environment" wymusza otwarcie tylnej kamery na telefonach -->
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleFileSelected(this)">
+      <input type="file" id="fileInput" accept="image/*,application/pdf" class="hidden" onchange="handleFileSelected(this)">
+
+      <!-- Przyciski wyboru źródła pliku -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <!-- Przycisk Aparatu -->
+        <button type="button" onclick="triggerCamera()" 
+                class="bg-seaviaBlue hover:bg-[#0a1e38] text-white font-bold py-3 px-5 rounded shadow-sm transition-all flex items-center justify-center text-sm gap-2">
+          <i class="fa-solid fa-camera text-base"></i> Zrób zdjęcie (Aparat)
+        </button>
+
+        <!-- Przycisk wyboru z urządzenia -->
+        <button type="button" onclick="triggerFileSelect()" 
+                class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3 px-5 rounded shadow-sm transition-all flex items-center justify-center text-sm gap-2 border border-slate-300">
+          <i class="fa-solid fa-file-import text-base text-seaviaBlue"></i> Wybierz plik z urządzenia
+        </button>
+      </div>
+    </div>
+
+    <!-- Podgląd wybranego pliku -->
+    <div id="filePreviewContainer" class="hidden bg-white border border-slate-200 rounded-lg p-4 mb-6 animate-fade-in shadow-inner">
+      <div class="flex items-center justify-between border-b pb-2 mb-3">
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Wybrany plik</span>
+        <button type="button" onclick="clearFileSelection()" class="text-slate-400 hover:text-red-500 transition-colors text-xs flex items-center gap-1">
+          <i class="fa-solid fa-circle-xmark"></i> Usuń
+        </button>
+      </div>
+      <div class="flex items-center gap-4">
+        <!-- Ikona lub miniatura -->
+        <div class="w-16 h-16 bg-slate-100 rounded border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+          <img id="previewImg" class="hidden w-full h-full object-cover" />
+          <i id="previewFallbackIcon" class="fa-solid fa-file-pdf text-3xl text-red-500 hidden"></i>
+        </div>
+        <!-- Informacje o pliku -->
+        <div class="overflow-hidden">
+          <p id="previewFileName" class="text-sm font-bold text-slate-700 truncate mb-0.5">Nazwa_pliku.jpg</p>
+          <p id="previewFileSize" class="text-xs text-slate-400">0.00 MB</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Przyciski akcji -->
+    <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
+      <button type="submit" id="saveCostBtn" 
+              class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded shadow-sm transition-all flex items-center justify-center text-sm gap-2">
+        <span>Zapisz koszt</span> <i class="fa-solid fa-cloud-arrow-up text-base"></i>
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+  let activeSelectedFile = null;
+
+  // Ustawienie domyślnej dzisiejszej daty kosztu przy załadowaniu komponentu
+  document.addEventListener("DOMContentLoaded", () => {
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('costDate');
+    if (dateInput) dateInput.value = today;
+  });
+
+  // Obsługa wyzwalania natywnych inputów
+  function triggerCamera() {
+    clearFileSelection();
+    document.getElementById('cameraInput').click();
+  }
+
+  function triggerFileSelect() {
+    clearFileSelection();
+    document.getElementById('fileInput').click();
+  }
+
+  // Obsługa wczytania i podglądu wybranego pliku
+  function handleFileSelected(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    activeSelectedFile = file;
+
+    const previewContainer = document.getElementById('filePreviewContainer');
+    const previewName = document.getElementById('previewFileName');
+    const previewSize = document.getElementById('previewFileSize');
+    const previewImg = document.getElementById('previewImg');
+    const previewFallbackIcon = document.getElementById('previewFallbackIcon');
+
+    // Aktualizacja metadanych
+    previewName.innerText = file.name;
+    previewSize.innerText = (file.size / 1024 / 1024).toFixed(2) + " MB";
+
+    // Sprawdzenie, czy to obraz, czy np. PDF
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        previewImg.src = e.target.result;
+        previewImg.classList.remove('hidden');
+        previewFallbackIcon.classList.add('hidden');
+      };
+      reader.readAsDataURL(file);
+    } else {
+      previewImg.classList.add('hidden');
+      previewFallbackIcon.classList.remove('hidden');
+    }
+
+    previewContainer.classList.remove('hidden');
+  }
+
+  // Wyczyszczenie aktualnego załącznika
+  function clearFileSelection() {
+    document.getElementById('cameraInput').value = "";
+    document.getElementById('fileInput').value = "";
+    document.getElementById('filePreviewContainer').classList.add('hidden');
+    activeSelectedFile = null;
+  }
+
+  // Zapisanie kosztu (wysyłka do Google Apps Script)
+  function saveCost(event) {
+    event.preventDefault();
+
+    const costName = document.getElementById('costName').value.trim();
+    const costDate = document.getElementById('costDate').value;
+
+    if (!costName) { alert("Podaj nazwę lub opis kosztu!"); return; }
+    if (!costDate) { alert("Wybierz datę kosztu!"); return; }
+    if (!activeSelectedFile) { alert("Zrób zdjęcie lub dodaj plik paragonu/faktury!"); return; }
+
+    const submitBtn = document.getElementById('saveCostBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Zapisywanie pliku...';
+
+    // Konwersja pliku do formatu Base64 i przesył do backendu
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64Data = e.target.result;
+      
+      google.script.run
+        .withSuccessHandler(res => {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Zapisz koszt</span> <i class="fa-solid fa-cloud-arrow-up text-base"></i>';
+          
+          if (res && res.success) {
+            alert(res.message);
+            // Wyczyszczenie formularza i podglądu po sukcesie
+            document.getElementById('costForm').reset();
+            clearFileSelection();
+            // Przywrócenie domyślnej daty
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('costDate').value = today;
+          } else {
+            alert("Błąd: " + (res ? res.message : "Brak odpowiedzi serwera."));
+          }
+        })
+        .withFailureHandler(err => {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Zapisz koszt</span> <i class="fa-solid fa-cloud-arrow-up text-base"></i>';
+          alert("Wystąpił błąd komunikacji: " + err);
+        })
+        .uploadCostFile(base64Data, activeSelectedFile.name, costName, costDate);
+    };
+    reader.readAsDataURL(activeSelectedFile);
+  }
+</script>

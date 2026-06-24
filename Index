@@ -4,7 +4,6 @@
   <?!= include('Head'); ?>
 </head>
 <body class="text-slate-800 font-sans antialiased">
-
   <!-- ======================================================= -->
   <!-- GŁÓWNY PASEK NAWIGACJI                                  -->
   <!-- ======================================================= -->
@@ -26,7 +25,7 @@
       <img src="https://drive.google.com/thumbnail?id=1L4VgENQplibUvoIXim4tpkwvIj_UgTLO&sz=w400" alt="Seavia" class="h-8 object-contain" onerror="this.onerror=null; this.src='https://via.placeholder.com/100x40?text=SEAVIA';">
     </div>
   </nav>
-
+  
   <main class="max-w-4xl mx-auto mt-8 px-4 pb-12">
     
     <!-- EKRAN ŁADOWANIA -->
@@ -34,10 +33,9 @@
       <div class="loader mb-4"></div>
       <p class="text-slate-500 font-medium text-lg animate-pulse">Pobieranie danych...</p>
     </div>
-
+    
     <!-- GŁÓWNA ZAWARTOŚĆ APLIKACJI -->
     <div id="mainContent" class="hidden">
-
       <!-- ======================================================= -->
       <!-- ZAKŁADKI (TABS)                                         -->
       <!-- ======================================================= -->
@@ -54,8 +52,11 @@
         <button id="btn-reports" class="py-2 px-5 text-slate-500 font-medium hover:bg-slate-100 rounded-t-md transition-colors whitespace-nowrap" onclick="switchTab('reports')">
           <i class="fa-solid fa-chart-line mr-2"></i> Raporty
         </button>
+        <button id="btn-koszty" class="py-2 px-5 text-slate-500 font-medium hover:bg-slate-100 rounded-t-md transition-colors whitespace-nowrap" onclick="switchTab('koszty')">
+          <i class="fa-solid fa-wallet mr-2"></i> Koszty
+        </button>
       </div>
-
+      
       <!-- ======================================================= -->
       <!-- KONTENERY NA ZEWNĘTRZNE KOMPONENTY                      -->
       <!-- ======================================================= -->
@@ -63,28 +64,27 @@
       <div id="sec-project" class="block animate-fade-in">
         <?!= include('Component_Realizacja'); ?>
       </div>
-
       <div id="sec-tech" class="hidden animate-fade-in">
         <?!= include('Component_Technicy'); ?>
       </div>
-
       <div id="sec-tasks" class="hidden animate-fade-in">
         <?!= include('Component_KartaZadan'); ?>
       </div>
-
       <div id="sec-reports" class="hidden animate-fade-in">
         <?!= include('Component_Raporty'); ?>
       </div>
-
+      <div id="sec-koszty" class="hidden animate-fade-in">
+        <?!= include('Component_Koszty'); ?>
+      </div>
     </div>
   </main>
-
+  
   <!-- ======================================================= -->
   <!-- SKRYPTY STERUJĄCE INTERFEJSEM (ZAKŁADKI)                -->
   <!-- ======================================================= -->
   <script>
     function switchTab(tabId) {
-      const tabs = ['project', 'tech', 'tasks', 'reports'];
+      const tabs = ['project', 'tech', 'tasks', 'reports', 'koszty'];
       tabs.forEach(id => {
         const section = document.getElementById('sec-' + id);
         const btn = document.getElementById('btn-' + id);
@@ -102,12 +102,11 @@
       });
     }
   </script>
-
+  
   <!-- Wczytanie skryptów pobierających dane z bazy (Backend) -->
   <?!= include('Scripts'); ?>
   
   <!-- Wczytanie skryptów do rysowania wykresów (wymagane dla Realizacji Projektu) -->
   <?!= include('Scripts_Realizacja'); ?>
-
 </body>
 </html>

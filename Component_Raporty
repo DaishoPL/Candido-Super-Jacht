@@ -247,7 +247,6 @@
       container.classList.remove('hidden');
       return;
     }
-
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     let html = `<div class="bg-white p-3 border border-slate-300 mb-8 w-max min-w-[320px]"><p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Szczegóły raportu</p><div class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs"><span class="font-bold text-slate-700">Project name:</span> <span class="text-right text-seaviaBlue font-bold">REV OCEAN 19577</span><span class="font-bold text-slate-700">Week no.:</span> <span class="text-right text-seaviaBlue font-bold">${data.weekInfo.weekNumber}</span><span class="font-bold text-slate-700">Date range:</span> <span class="text-right font-mono">${data.weekInfo.start} / ${data.weekInfo.end}</span><span class="font-bold text-slate-700">Paid Breaks:</span> <span class="text-right ${data.settings.includeBreaks ? 'text-emerald-600' : 'text-slate-400'} font-bold">${data.settings.includeBreaks ? 'YES' : 'NO'}</span></div></div><div class="flex flex-col gap-y-10" id="pdf-export-wrapper">`;
 
@@ -259,11 +258,7 @@
         let hours = deckData[taskName] || [0, 0, 0, 0, 0, 0, 0];
         let total = hours.reduce((a, b) => a + b, 0);
         
-        // ZMIANA: Sprawdzamy czy to Extra Job i dodajemy odpowiednią klasę tekstową (czerwoną)
-        let isExtraJob = taskName.toLowerCase().includes("extra job");
-        let taskColorClass = isExtraJob ? "text-red-600" : "text-slate-700";
-
-        let rowHtml = `<tr class="border-b border-slate-200 hover:bg-blue-50/50"><td class="p-1 border-r border-slate-300 text-center text-slate-500 font-medium">${index}</td><td class="p-1 border-r border-slate-300 font-bold ${taskColorClass} leading-tight">${taskName}</td>`;
+        let rowHtml = `<tr class="border-b border-slate-200 hover:bg-blue-50/50"><td class="p-1 border-r border-slate-300 text-center text-slate-500 font-medium">${index}</td><td class="p-1 border-r border-slate-300 font-bold text-slate-700 leading-tight">${taskName}</td>`;
         let totalClass = total > 0 ? 'bg-green-200 text-green-900 font-black' : 'bg-slate-100 text-slate-400';
         rowHtml += `<td class="p-1 border-r border-slate-300 text-center ${totalClass}">${total > 0 ? total.toFixed(1) : '0'}</td>`;
         
@@ -275,21 +270,22 @@
         return rowHtml;
       };
 
-      html += renderRow("Supervision", 0);
+      // Supervision pojawia się na każdym pokładzie oprócz pokładu TRAVEL
+      if (deckName !== "TRAVEL") {
+        html += renderRow("Supervision", 0);
+      }
 
       let filteredTasks = data.allTasks;
       if (!data.settings.includeBreaks) {
         filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
       }
 
-      // ZMIANA: Sortowanie zadań tak, by "Extra Job" były na końcu
-      filteredTasks.sort((a, b) => {
-        const aIsExtra = a.toLowerCase().includes("extra job");
-        const bIsExtra = b.toLowerCase().includes("extra job");
-        if (aIsExtra && !bIsExtra) return 1;
-        if (!aIsExtra && bIsExtra) return -1;
-        return a.localeCompare(b);
-      });
+      // Zadanie travel widoczne wyłącznie na pokładzie TRAVEL, na innych ukryte
+      if (deckName === "TRAVEL") {
+        filteredTasks = filteredTasks.filter(t => t.toLowerCase() === "travel");
+      } else {
+        filteredTasks = filteredTasks.filter(t => t.toLowerCase() !== "travel");
+      }
 
       let taskIndex = 1;
       filteredTasks.forEach(taskName => {
@@ -299,6 +295,50 @@
       });
       html += `</tbody></table></div></div>`;
     });
+
+    // --- SEKCJA PRACE DODATKOWE (EXTRA JOBS) NA SAMYM DOLE ---
+    if (data.extraTasks && data.extraTasks.length > 0) {
+      html += `
+      <div class="report-page w-full bg-white border border-slate-300 shadow-sm mt-10">
+        <div class="bg-red-50 p-2 border-b border-slate-300">
+            <h3 class="font-black text-red-700 text-[11px] uppercase tracking-wider">PRACE DODATKOWE (EXTRA JOBS)</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-[10px] sm:text-[11px]">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-600">
+                        <th class="p-1 border-b border-r border-slate-300 text-center w-8">No.</th>
+                        <th class="p-1 border-b border-r border-slate-300 min-w-[180px]">Tasks</th>
+                        <th class="p-1 border-b border-r border-slate-300 text-center w-12 font-bold bg-slate-200">Total</th>
+                        ${days.map((d, i) => `<th class="p-1 border-b ${i < 6 ? 'border-r' : ''} border-slate-300 text-center w-10">${d}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+      `;
+
+      let extraTaskIndex = 1;
+      data.extraTasks.forEach(taskName => {
+        let hours = data.extraDeck.tasks[taskName] || [0, 0, 0, 0, 0, 0, 0];
+        let total = hours.reduce((a, b) => a + b, 0);
+
+        let rowHtml = `<tr class="border-b border-slate-200 hover:bg-red-50/30">
+            <td class="p-1 border-r border-slate-300 text-center text-slate-500 font-medium">${extraTaskIndex++}</td>
+            <td class="p-1 border-r border-slate-300 font-bold text-red-600 leading-tight">${taskName}</td>`;
+
+        let totalClass = total > 0 ? 'bg-green-200 text-green-900 font-black' : 'bg-slate-100 text-slate-400';
+        rowHtml += `<td class="p-1 border-r border-slate-300 text-center ${totalClass}">${total > 0 ? total.toFixed(1) : '0'}</td>`;
+
+        hours.forEach((h, i) => {
+          let cellClass = h > 0 ? 'bg-green-100 text-green-800 font-black' : 'text-slate-300';
+          rowHtml += `<td class="p-1 ${i < 6 ? 'border-r' : ''} border-slate-300 text-center ${cellClass}">${h > 0 ? h.toFixed(1) : '0'}</td>`;
+        });
+
+        rowHtml += `</tr>`;
+        html += rowHtml;
+      });
+
+      html += `</tbody></table></div></div>`;
+    }
 
     html += `</div>`;
     content.innerHTML = html;
@@ -313,7 +353,6 @@
       container.classList.remove('hidden');
       return;
     }
-
     let allWeeksSorted = data.allWeeks.sort((a, b) => a - b);
     let html = `<div class="bg-white p-3 border border-slate-300 mb-8 w-max min-w-[320px]"><p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">Szczegóły raportu</p><div class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs"><span class="font-bold text-slate-700">Project name:</span> <span class="text-right text-seaviaBlue font-bold">REV OCEAN 19577</span><span class="font-bold text-slate-700">Paid Breaks:</span> <span class="text-right ${data.settings.includeBreaks ? 'text-emerald-600' : 'text-slate-400'} font-bold">${data.settings.includeBreaks ? 'YES' : 'NO'}</span><span class="font-bold text-slate-700">Data generacji:</span> <span class="text-right font-mono">${new Date().toLocaleDateString('pl-PL')}</span></div></div><div class="flex flex-col gap-y-10" id="pdf-export-wrapper">`;
 
@@ -325,11 +364,7 @@
         let taskData = deckData.tasks[taskName] || { total: 0, weeklyHours: {} };
         let total = taskData.total;
         
-        // ZMIANA: Sprawdzamy czy to Extra Job i dodajemy odpowiednią klasę tekstową (czerwoną)
-        let isExtraJob = taskName.toLowerCase().includes("extra job");
-        let taskColorClass = isExtraJob ? "text-red-600" : "text-slate-700";
-
-        let rowHtml = `<tr class="border-b border-slate-200 hover:bg-blue-50/50"><td class="p-1 border-r border-slate-300 text-center text-slate-500 font-medium">${index}</td><td class="p-1 border-r border-slate-300 font-bold ${taskColorClass} leading-tight">${taskName}</td>`;
+        let rowHtml = `<tr class="border-b border-slate-200 hover:bg-blue-50/50"><td class="p-1 border-r border-slate-300 text-center text-slate-500 font-medium">${index}</td><td class="p-1 border-r border-slate-300 font-bold text-slate-700 leading-tight">${taskName}</td>`;
         let totalClass = total > 0 ? 'bg-green-200 text-green-900 font-black' : 'bg-slate-100 text-slate-400';
         rowHtml += `<td class="p-1 border-r border-slate-300 text-center ${totalClass}">${total > 0 ? total.toFixed(1) : '0'}</td>`;
         
@@ -342,21 +377,22 @@
         return rowHtml;
       };
 
-      html += renderRow("Supervision", 0);
+      // Supervision pojawia się na każdym pokładzie oprócz pokładu TRAVEL
+      if (deckName !== "TRAVEL") {
+        html += renderRow("Supervision", 0);
+      }
 
       let filteredTasks = data.allTasks;
       if (!data.settings.includeBreaks) {
         filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
       }
 
-      // ZMIANA: Sortowanie zadań tak, by "Extra Job" były na końcu
-      filteredTasks.sort((a, b) => {
-        const aIsExtra = a.toLowerCase().includes("extra job");
-        const bIsExtra = b.toLowerCase().includes("extra job");
-        if (aIsExtra && !bIsExtra) return 1;
-        if (!aIsExtra && bIsExtra) return -1;
-        return a.localeCompare(b);
-      });
+      // Zadanie travel widoczne wyłącznie na pokładzie TRAVEL, na innych ukryte
+      if (deckName === "TRAVEL") {
+        filteredTasks = filteredTasks.filter(t => t.toLowerCase() === "travel");
+      } else {
+        filteredTasks = filteredTasks.filter(t => t.toLowerCase() !== "travel");
+      }
 
       let taskIndex = 1;
       filteredTasks.forEach(taskName => {
@@ -366,7 +402,52 @@
       });
       html += `</tbody></table></div></div>`;
     });
-    
+
+    // --- SEKCJA PRACE DODATKOWE (EXTRA JOBS) NA SAMYM DOLE ---
+    if (data.extraTasks && data.extraTasks.length > 0) {
+      html += `
+      <div class="report-page w-full bg-white border border-slate-300 shadow-sm mt-10">
+        <div class="bg-red-50 p-2 border-b border-slate-300">
+            <h3 class="font-black text-red-700 text-[11px] uppercase tracking-wider">PRACE DODATKOWE (EXTRA JOBS)</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-[10px] sm:text-[11px]">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-600">
+                        <th class="p-1 border-b border-r border-slate-300 text-center w-8">No.</th>
+                        <th class="p-1 border-b border-r border-slate-300 min-w-[180px]">Tasks</th>
+                        <th class="p-1 border-b border-r border-slate-300 text-center w-12 font-bold bg-slate-200">Total</th>
+                        ${allWeeksSorted.map((week, i) => `<th class="p-1 border-b ${i < allWeeksSorted.length - 1 ? 'border-r' : ''} border-slate-300 text-center w-10">W${week}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+      `;
+
+      let extraTaskIndex = 1;
+      data.extraTasks.forEach(taskName => {
+        let taskData = data.extraDeck.tasks[taskName] || { total: 0, weeklyHours: {} };
+        let total = taskData.total;
+
+        let rowHtml = `<tr class="border-b border-slate-200 hover:bg-red-50/30">
+            <td class="p-1 border-r border-slate-300 text-center text-slate-500 font-medium">${extraTaskIndex++}</td>
+            <td class="p-1 border-r border-slate-300 font-bold text-red-600 leading-tight">${taskName}</td>`;
+
+        let totalClass = total > 0 ? 'bg-green-200 text-green-900 font-black' : 'bg-slate-100 text-slate-400';
+        rowHtml += `<td class="p-1 border-r border-slate-300 text-center ${totalClass}">${total > 0 ? total.toFixed(1) : '0'}</td>`;
+
+        allWeeksSorted.forEach((weekNum, i) => {
+          let h = taskData.weeklyHours[weekNum] || 0;
+          let cellClass = h > 0 ? 'bg-green-100 text-green-800 font-black' : 'text-slate-300';
+          rowHtml += `<td class="p-1 ${i < allWeeksSorted.length - 1 ? 'border-r' : ''} border-slate-300 text-center ${cellClass}">${h > 0 ? h.toFixed(1) : '0'}</td>`;
+        });
+
+        rowHtml += `</tr>`;
+        html += rowHtml;
+      });
+
+      html += `</tbody></table></div></div>`;
+    }
+
     html += `</div>`;
     content.innerHTML = html;
     container.classList.remove('hidden');
@@ -378,7 +459,6 @@
       alert("Trwa ładowanie biblioteki PDF. Spróbuj ponownie za chwilę.");
       return;
     }
-
     window.scrollTo(0, 0);
     setTimeout(() => {
       const element = document.getElementById('reportContent');
@@ -409,11 +489,9 @@
       alert("Najpierw wygeneruj raport.");
       return;
     }
-
     const btn = document.getElementById('btnExportExcel');
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Generowanie...';
     btn.disabled = true;
-
     google.script.run
       .withSuccessHandler(response => {
         if (response && response.fileUrl) {

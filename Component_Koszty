@@ -24,7 +24,6 @@
         <input type="text" id="costName" required placeholder="np. Klej, profile, drobne narzędzia" 
                class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
       </div>
-
       <!-- Pole: Data kosztu -->
       <div>
         <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data Kosztu</label>
@@ -35,12 +34,11 @@
 
     <!-- Sekcja załączników / plików -->
     <div class="mb-6">
-      <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Załącznik (Zdjęcie, PDF lub Paragon)</label>
+      <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Załączniki (Zdjęcia, PDF lub Paragony)</label>
       
-      <!-- Ukryte natywne inputy plików -->
-      <!-- capture="environment" wymusza otwarcie tylnej kamery na telefonach -->
+      <!-- Ukryte natywne inputy plików (multiple dodane do fileInput) -->
       <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleFileSelected(this)">
-      <input type="file" id="fileInput" accept="image/*,application/pdf" class="hidden" onchange="handleFileSelected(this)">
+      <input type="file" id="fileInput" accept="image/*,application/pdf" class="hidden" multiple onchange="handleFileSelected(this)">
 
       <!-- Przyciski wyboru źródła pliku -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -49,34 +47,24 @@
                 class="bg-seaviaBlue hover:bg-[#0a1e38] text-white font-bold py-3 px-5 rounded shadow-sm transition-all flex items-center justify-center text-sm gap-2">
           <i class="fa-solid fa-camera text-base"></i> Zrób zdjęcie (Aparat)
         </button>
-
         <!-- Przycisk wyboru z urządzenia -->
         <button type="button" onclick="triggerFileSelect()" 
                 class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3 px-5 rounded shadow-sm transition-all flex items-center justify-center text-sm gap-2 border border-slate-300">
-          <i class="fa-solid fa-file-import text-base text-seaviaBlue"></i> Wybierz plik z urządzenia
+          <i class="fa-solid fa-file-import text-base text-seaviaBlue"></i> Wybierz pliki z urządzenia
         </button>
       </div>
     </div>
 
-    <!-- Podgląd wybranego pliku -->
+    <!-- Podgląd wybranych plików -->
     <div id="filePreviewContainer" class="hidden bg-white border border-slate-200 rounded-lg p-4 mb-6 animate-fade-in shadow-inner">
       <div class="flex items-center justify-between border-b pb-2 mb-3">
-        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Wybrany plik</span>
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Wybrane pliki</span>
         <button type="button" onclick="clearFileSelection()" class="text-slate-400 hover:text-red-500 transition-colors text-xs flex items-center gap-1">
-          <i class="fa-solid fa-circle-xmark"></i> Usuń
+          <i class="fa-solid fa-circle-xmark"></i> Usuń wszystkie
         </button>
       </div>
-      <div class="flex items-center gap-4">
-        <!-- Ikona lub miniatura -->
-        <div class="w-16 h-16 bg-slate-100 rounded border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-          <img id="previewImg" class="hidden w-full h-full object-cover" />
-          <i id="previewFallbackIcon" class="fa-solid fa-file-pdf text-3xl text-red-500 hidden"></i>
-        </div>
-        <!-- Informacje o pliku -->
-        <div class="overflow-hidden">
-          <p id="previewFileName" class="text-sm font-bold text-slate-700 truncate mb-0.5">Nazwa_pliku.jpg</p>
-          <p id="previewFileSize" class="text-xs text-slate-400">0.00 MB</p>
-        </div>
+      <div id="filesListContainer" class="flex flex-col gap-3">
+        <!-- Dynamicznie wstrzykiwane pliki przez JS -->
       </div>
     </div>
 
@@ -91,7 +79,7 @@
 </div>
 
 <script>
-  let activeSelectedFile = null;
+  let activeSelectedFiles = [];
 
   // Ustawienie domyślnej dzisiejszej daty kosztu przy załadowaniu komponentu
   document.addEventListener("DOMContentLoaded", () => {
@@ -102,101 +90,138 @@
 
   // Obsługa wyzwalania natywnych inputów
   function triggerCamera() {
-    clearFileSelection();
     document.getElementById('cameraInput').click();
   }
 
   function triggerFileSelect() {
-    clearFileSelection();
     document.getElementById('fileInput').click();
   }
 
-  // Obsługa wczytania i podglądu wybranego pliku
+  // Obsługa wczytania i podglądu wybranych plików
   function handleFileSelected(input) {
-    const file = input.files[0];
-    if (!file) return;
+    const files = Array.from(input.files);
+    if (files.length === 0) return;
 
-    activeSelectedFile = file;
+    // Dodanie nowych plików do aktualnie wybranej listy
+    activeSelectedFiles = activeSelectedFiles.concat(files);
+    renderFilesPreview();
+  }
 
+  // Renderowanie listy wybranych plików z opcją usuwania każdego z osobna
+  function renderFilesPreview() {
     const previewContainer = document.getElementById('filePreviewContainer');
-    const previewName = document.getElementById('previewFileName');
-    const previewSize = document.getElementById('previewFileSize');
-    const previewImg = document.getElementById('previewImg');
-    const previewFallbackIcon = document.getElementById('previewFallbackIcon');
+    const filesListContainer = document.getElementById('filesListContainer');
+    if (!previewContainer || !filesListContainer) return;
 
-    // Aktualizacja metadanych
-    previewName.innerText = file.name;
-    previewSize.innerText = (file.size / 1024 / 1024).toFixed(2) + " MB";
-
-    // Sprawdzenie, czy to obraz, czy np. PDF
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        previewImg.src = e.target.result;
-        previewImg.classList.remove('hidden');
-        previewFallbackIcon.classList.add('hidden');
-      };
-      reader.readAsDataURL(file);
-    } else {
-      previewImg.classList.add('hidden');
-      previewFallbackIcon.classList.remove('hidden');
+    if (activeSelectedFiles.length === 0) {
+      previewContainer.classList.add('hidden');
+      return;
     }
 
+    let html = '';
+    activeSelectedFiles.forEach((file, index) => {
+      const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+      const isImage = file.type.startsWith('image/');
+
+      html += `
+        <div class="flex items-center justify-between p-3 bg-slate-50 rounded-md border border-slate-200 gap-4">
+          <div class="flex items-center gap-3 overflow-hidden">
+            <div class="w-12 h-12 bg-white rounded border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+              ${isImage ? `<img src="${URL.createObjectURL(file)}" class="w-full h-full object-cover" />` : `<i class="fa-solid fa-file-pdf text-2xl text-red-500"></i>`}
+            </div>
+            <div class="overflow-hidden">
+              <p class="text-sm font-bold text-slate-700 truncate max-w-[200px]" title="${file.name}">${file.name}</p>
+              <p class="text-xs text-slate-400">${fileSizeMB} MB</p>
+            </div>
+          </div>
+          <button type="button" onclick="removeFileFromSelection(${index})" class="text-slate-400 hover:text-red-500 p-1.5 transition-colors" title="Usuń plik">
+            <i class="fa-solid fa-trash-can text-sm"></i>
+          </button>
+        </div>
+      `;
+    });
+
+    filesListContainer.innerHTML = html;
     previewContainer.classList.remove('hidden');
   }
 
-  // Wyczyszczenie aktualnego załącznika
+  // Usunięcie wybranego pliku z listy
+  function removeFileFromSelection(index) {
+    activeSelectedFiles.splice(index, 1);
+    renderFilesPreview();
+  }
+
+  // Wyczyszczenie całego wyboru
   function clearFileSelection() {
     document.getElementById('cameraInput').value = "";
     document.getElementById('fileInput').value = "";
-    document.getElementById('filePreviewContainer').classList.add('hidden');
-    activeSelectedFile = null;
+    activeSelectedFiles = [];
+    renderFilesPreview();
   }
 
-  // Zapisanie kosztu (wysyłka do Google Apps Script)
+  // Zapisanie kosztu i sekwencyjny upload wszystkich plików
   function saveCost(event) {
     event.preventDefault();
-
     const costName = document.getElementById('costName').value.trim();
     const costDate = document.getElementById('costDate').value;
 
     if (!costName) { alert("Podaj nazwę lub opis kosztu!"); return; }
     if (!costDate) { alert("Wybierz datę kosztu!"); return; }
-    if (!activeSelectedFile) { alert("Zrób zdjęcie lub dodaj plik paragonu/faktury!"); return; }
+    if (activeSelectedFiles.length === 0) { alert("Zrób zdjęcie lub dodaj pliki paragonu/faktury!"); return; }
 
     const submitBtn = document.getElementById('saveCostBtn');
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Zapisywanie pliku...';
 
-    // Konwersja pliku do formatu Base64 i przesył do backendu
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      const base64Data = e.target.result;
-      
-      google.script.run
-        .withSuccessHandler(res => {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = '<span>Zapisz koszt</span> <i class="fa-solid fa-cloud-arrow-up text-base"></i>';
-          
-          if (res && res.success) {
-            alert(res.message);
-            // Wyczyszczenie formularza i podglądu po sukcesie
-            document.getElementById('costForm').reset();
-            clearFileSelection();
-            // Przywrócenie domyślnej daty
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('costDate').value = today;
-          } else {
-            alert("Błąd: " + (res ? res.message : "Brak odpowiedzi serwera."));
-          }
-        })
-        .withFailureHandler(err => {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = '<span>Zapisz koszt</span> <i class="fa-solid fa-cloud-arrow-up text-base"></i>';
-          alert("Wystąpił błąd komunikacji: " + err);
-        })
-        .uploadCostFile(base64Data, activeSelectedFile.name, costName, costDate);
-    };
-    reader.readAsDataURL(activeSelectedFile);
+    let uploadIndex = 0;
+
+    // Funkcja pomocnicza do sekwencyjnego przesyłania plików
+    function uploadNextFile() {
+      if (uploadIndex >= activeSelectedFiles.length) {
+        // Wszystkie pliki zostały pomyślnie wysłane
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>Zapisz koszt</span> <i class="fa-solid fa-cloud-arrow-up text-base"></i>';
+        
+        alert(`Pomyślnie zapisano koszt oraz przesłano ${activeSelectedFiles.length} plik(ów) do archiwum!`);
+        document.getElementById('costForm').reset();
+        clearFileSelection();
+        
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('costDate').value = today;
+        return;
+      }
+
+      const file = activeSelectedFiles[uploadIndex];
+      submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Przesyłanie ${uploadIndex + 1} z ${activeSelectedFiles.length}...`;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const base64Data = e.target.result;
+
+        google.script.run
+          .withSuccessHandler(res => {
+            if (res && res.success) {
+              uploadIndex++;
+              uploadNextFile(); // Wywołanie kolejnego pliku
+            } else {
+              alert(`Błąd przesyłania pliku "${file.name}": ` + (res ? res.message : "Brak odpowiedzi serwera."));
+              resetSaveButton();
+            }
+          })
+          .withFailureHandler(err => {
+            alert(`Błąd komunikacji przy pliku "${file.name}": ` + err);
+            resetSaveButton();
+          })
+          .uploadCostFile(base64Data, file.name, costName, costDate);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function resetSaveButton() {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<span>Zapisz koszt</span> <i class="fa-solid fa-cloud-arrow-up text-base"></i>';
+    }
+
+    // Rozpoczęcie wysyłania pierwszego pliku
+    uploadNextFile();
   }
 </script>

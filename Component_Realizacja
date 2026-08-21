@@ -3,7 +3,7 @@
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
     <div>
       <h2 class="text-2xl font-bold text-seaviaBlue">
-        <i class="fa-solid fa-chart-line mr-2 text-candidoRed"></i> Status Realizacji Projektu
+        <i class="fa-solid fa-chart-line mr-2 text-KlientRed"></i> Status Realizacji Projektu
       </h2>
       <p class="text-sm text-slate-500 mt-1">Podgląd postępów prac, wypracowanych godzin oraz statystyk zespołu.</p>
     </div>
@@ -14,7 +14,7 @@
     <!-- KPI 1: Całkowity postęp projektu -->
     <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-center">
       <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Całkowity Postęp</span>
-      <div id="dashTotalProgress" class="text-3xl font-black text-candidoRed">0.0%</div>
+      <div id="dashTotalProgress" class="text-3xl font-black text-KlientRed">0.0%</div>
       <span class="text-[10px] text-slate-400 mt-1 block">Średnia ważona z czasu</span>
     </div>
 

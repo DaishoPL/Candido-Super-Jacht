@@ -9,16 +9,16 @@
   <!-- ======================================================= -->
   <nav class="bg-white px-6 py-4 flex justify-between items-center shadow-sm border-b border-gray-200 sticky top-0 z-50">
     <div class="flex items-center">
-      <img src="https://drive.google.com/thumbnail?id=1lxSTmQcvgVlUts-T_ARGJM63CFPRk7SX&sz=w400" alt="Candido Hermida" class="h-8" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x40?text=CANDIDO+HERMIDA';">
+      <img src="https://drive.google.com/thumbnail?id=1lxSTmQcvgVlUts-T_ARGJM63CFPRk7SX&sz=w400" alt="Klient " class="h-8" onerror="this.onerror=null; this.src='https://via.placeholder.com/150x40?text=Klient+';">
     </div>
     
     <div class="text-center hidden md:block">
-      <h1 class="text-xl font-bold text-gray-800">NL <span class="text-candidoRed">SUPER JACHT</span>.</h1>
+      <h1 class="text-xl font-bold text-gray-800">NL <span class="text-KlientRed">SUPER JACHT</span>.</h1>
       <p class="text-[10px] text-gray-500 font-bold tracking-widest uppercase mt-0.5">DASHBOARD</p>
     </div>
     
     <div class="flex items-center space-x-4">
-      <button onclick="refreshData()" class="flex items-center text-candidoRed border border-red-200 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-md text-sm font-bold transition-colors">
+      <button onclick="refreshData()" class="flex items-center text-KlientRed border border-red-200 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-md text-sm font-bold transition-colors">
         <i class="fa-solid fa-arrows-rotate mr-2"></i> Odśwież dane
       </button>
       

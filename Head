@@ -14,7 +14,7 @@
     theme: {
       extend: {
         colors: {
-          candidoRed: '#e53e3e',
+          KlientRed: '#e53e3e',
           seaviaBlue: '#0f2d52',
           bgLight: '#f8fafc'
         }

@@ -200,7 +200,7 @@
                <i class="fa-solid fa-circle text-[6px] mr-1 ${statusDot}"></i> ${isActive ? 'Aktywny' : 'Nieakt.'}
              </button>
            </td>
-           <td class="p-3 text-center font-black text-base text-KlientRed">${tech.totalHours.toFixed(1)}h</td>
+           <td class="p-3 text-center font-black text-base text-candidoRed">${tech.totalHours.toFixed(1)}h</td>
            <td class="p-3">${compactDecks}</td>
         </tr>
       `;
@@ -251,7 +251,7 @@
               </span>
             </div>
             <div class="flex items-center w-full sm:w-auto justify-between sm:justify-end gap-6 text-slate-600">
-              <span class="font-bold text-sm bg-slate-100 px-3 py-1.5 rounded-md inline-flex items-center"><i class="fa-regular fa-clock text-KlientRed mr-1.5"></i> ${groupData.totalHours.toFixed(1)}h razem</span>
+              <span class="font-bold text-sm bg-slate-100 px-3 py-1.5 rounded-md inline-flex items-center"><i class="fa-regular fa-clock text-candidoRed mr-1.5"></i> ${groupData.totalHours.toFixed(1)}h razem</span>
               <i id="icon-${safeId}" class="fa-solid fa-chevron-down transition-transform duration-300 ${rotateClass}"></i>
             </div>
           </div>
@@ -291,7 +291,7 @@
             <div class="flex items-center justify-between lg:justify-end gap-4 w-full lg:w-auto mt-2 lg:mt-0 pt-3 lg:pt-0 border-t lg:border-0 border-slate-100">
               <div class="text-right flex flex-col">
                 <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Suma</span>
-                <span class="font-black text-xl text-KlientRed leading-none">${tech.totalHours.toFixed(1)}h</span>
+                <span class="font-black text-xl text-candidoRed leading-none">${tech.totalHours.toFixed(1)}h</span>
               </div>
               <div class="w-48">
                 <select onchange="changeTechTeam('${tech.name}', this)" class="team-select w-full text-[11px] font-bold border border-slate-300 rounded p-2 bg-slate-50 focus:ring-2 focus:ring-seaviaBlue focus:bg-white cursor-pointer shadow-sm text-seaviaBlue">

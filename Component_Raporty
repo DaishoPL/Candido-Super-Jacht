@@ -4,7 +4,7 @@
 <div class="bg-white rounded-lg shadow-sm p-4 md:p-8 border border-gray-100 animate-fade-in">
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
     <div>
-      <h2 class="text-2xl font-bold text-seaviaBlue"><i class="fa-solid fa-file-contract mr-2 text-ZadaniaRed"></i> Centrum Raportowania</h2>
+      <h2 class="text-2xl font-bold text-seaviaBlue"><i class="fa-solid fa-file-contract mr-2 text-candidoRed"></i> Centrum Raportowania</h2>
       <p class="text-sm text-slate-500 mt-1">Generuj zbiorcze rozliczenia godzinowe lub indywidualne Karty Pracy techników.</p>
     </div>
   </div>
@@ -125,7 +125,7 @@
         btn.innerHTML = '<i class="fa-solid fa-table-list mr-2 text-seaviaBlue"></i> Czas na pokładach';
         btn.disabled = false;
       })
-      .getZadaniaWeeklyReport(dateStr, includeBreaks);
+      .getCandidoWeeklyReport(dateStr, includeBreaks);
   }
 
   function fetchTimeByWeekReport() {
@@ -474,7 +474,7 @@
       
       document.head.insertAdjacentHTML('beforeend', pdfStyles);
       const weekNum = isWeekly ? currentReportData.weekInfo.weekNumber : 'Annual';
-      const opt = { margin: 0.3, filename: `Zadania_Report_${weekNum}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas:  { scale: 2, useCORS: true }, jsPDF: { unit: 'in', format: 'a4', orientation: isWeekly ? 'portrait' : 'landscape' } };
+      const opt = { margin: 0.3, filename: `Candido_Report_${weekNum}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas:  { scale: 2, useCORS: true }, jsPDF: { unit: 'in', format: 'a4', orientation: isWeekly ? 'portrait' : 'landscape' } };
       
       html2pdf().set(opt).from(element).save().then(() => {
         const styleTag = document.getElementById('pdf-styles');

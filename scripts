@@ -130,7 +130,7 @@
               `<li class="flex justify-between items-center group py-1 border-b border-slate-100 last:border-0">
                  <span>
                    ${mode === 'team' ? `<span class="font-bold text-slate-500 mr-2">[${t.techName}]</span>` : ''}
-                   <span class="text-KlientRed font-bold mr-2">${t.start} - ${t.end}</span> <span class="text-slate-400">|</span> ${t.deck} <span class="text-slate-400">|</span> ${t.taskName}
+                   <span class="text-candidoRed font-bold mr-2">${t.start} - ${t.end}</span> <span class="text-slate-400">|</span> ${t.deck} <span class="text-slate-400">|</span> ${t.taskName}
                  </span>
                  <button type="button" onclick="cancelTask(${t.dbRowIndex})" class="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-1 px-2" title="Anuluj to zadanie w bazie">
                    <i class="fa-solid fa-trash-can"></i>

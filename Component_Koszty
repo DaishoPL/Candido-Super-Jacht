@@ -2,7 +2,7 @@
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
     <div>
       <h2 class="text-2xl font-bold text-seaviaBlue">
-        <i class="fa-solid fa-wallet mr-2 text-candidoRed"></i> Rejestracja Kosztów i Rachunków
+        <i class="fa-solid fa-wallet mr-2 text-KlientRed"></i> Rejestracja Kosztów i Rachunków
       </h2>
       <p class="text-sm text-slate-500 mt-1">Dodaj paragony, faktury oraz inne wydatki bezpośrednio do archiwum projektu.</p>
     </div>

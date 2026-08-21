@@ -13,7 +13,7 @@ function forceDrivePermission() {
 function doGet() {
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('SUPER JACHT-dev')
+    .setTitle('Aplikacja testowa-dev')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
@@ -129,12 +129,12 @@ function getInitialData() {
   });
 
   let tasksTree = {}; 
-  const sheetZadania = ss.getSheetByName('Zadania');
-  if (sheetZadania) {
-    const lastRow = sheetZadania.getLastRow();
+  const sheetCandido = ss.getSheetByName('Candido');
+  if (sheetCandido) {
+    const lastRow = sheetCandido.getLastRow();
 
     if (lastRow >= 3) {
-      const data = sheetZadania.getRange(1, 1, lastRow, 16).getValues();
+      const data = sheetCandido.getRange(1, 1, lastRow, 16).getValues();
       let currentDeck = "";
       let currentArea = "";
 
@@ -387,9 +387,9 @@ function submitWorkReport(formData) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let idPrac = "";
-    const sheetZadania = ss.getSheetByName('Zadania');
+    const sheetCandido = ss.getSheetByName('Candido');
     if (formData.isCustomTask) {
-      if (sheetZadania) {
+      if (sheetCandido) {
         idPrac = formData.customTaskId || "Dodatkowe";
         if (formData.isExtraJob && !idPrac.toUpperCase().includes("- EXTRA JOB")) {
           idPrac += " - Extra Job";
@@ -410,15 +410,15 @@ function submitWorkReport(formData) {
         if (formData.progress) {
           newRow[15] = formData.progress + "%";
         }
-        sheetZadania.appendRow(newRow);
+        sheetCandido.appendRow(newRow);
       }
     } else {
       if (formData.taskRow) {
-        if (sheetZadania) {
-          idPrac = sheetZadania.getRange(parseInt(formData.taskRow), 6).getValue();
+        if (sheetCandido) {
+          idPrac = sheetCandido.getRange(parseInt(formData.taskRow), 6).getValue();
           if (!idPrac || idPrac === "") idPrac = "Wiersz " + formData.taskRow;
           if (formData.progress) {
-            sheetZadania.getRange(parseInt(formData.taskRow), 16).setValue(formData.progress + "%");
+            sheetCandido.getRange(parseInt(formData.taskRow), 16).setValue(formData.progress + "%");
           }
         }
       }
@@ -452,7 +452,7 @@ function submitWorkReport(formData) {
   }
 }
 
-function getZadaniaWeeklyReport(dateStr, includeBreaks) {
+function getCandidoWeeklyReport(dateStr, includeBreaks) {
   if (!dateStr) return null;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
@@ -492,10 +492,10 @@ function getZadaniaWeeklyReport(dateStr, includeBreaks) {
   };
 
   let uniqueTasks = new Set();
-  const sheetZadania = ss.getSheetByName('Zadania');
-  if (sheetZadania && sheetZadania.getLastRow() >= 3) {
-    const ZadaniaTasks = sheetZadania.getRange(3, 9, sheetZadania.getLastRow() - 2, 1).getValues();
-    ZadaniaTasks.forEach(row => {
+  const sheetCandido = ss.getSheetByName('Candido');
+  if (sheetCandido && sheetCandido.getLastRow() >= 3) {
+    const candidoTasks = sheetCandido.getRange(3, 9, sheetCandido.getLastRow() - 2, 1).getValues();
+    candidoTasks.forEach(row => {
       let t = String(row[0]).trim();
       if (t && !t.includes("[ANULOWANE]") && !t.toLowerCase().includes("extra job")) {
         uniqueTasks.add(t);
@@ -585,10 +585,10 @@ function getTimeByWeekReport(includeBreaks) {
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return { decks: {}, allTasks: [], allWeeks: [] };
 
   const projectTasks = new Set();
-  const sheetZadania = ss.getSheetByName('Zadania');
-  if (sheetZadania && sheetZadania.getLastRow() >= 3) {
-    const ZadaniaTasks = sheetZadania.getRange(3, 9, sheetZadania.getLastRow() - 2, 1).getValues();
-    ZadaniaTasks.forEach(row => {
+  const sheetCandido = ss.getSheetByName('Candido');
+  if (sheetCandido && sheetCandido.getLastRow() >= 3) {
+    const candidoTasks = sheetCandido.getRange(3, 9, sheetCandido.getLastRow() - 2, 1).getValues();
+    candidoTasks.forEach(row => {
       const taskName = String(row[0]).trim();
       if (taskName && !taskName.includes("[ANULOWANE]") && !taskName.toLowerCase().includes("extra job")) {
         projectTasks.add(taskName);
@@ -801,7 +801,7 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
 function generateStyledExcelReport(reportData, reportType) {
   try {
     const isWeekly = reportType === 'weekly';
-    const baseName = "Zadania_" + (isWeekly ? reportData.weekInfo.weekNumber : 'Annual') + "_Report";
+    const baseName = "Candido_" + (isWeekly ? reportData.weekInfo.weekNumber : 'Annual') + "_Report";
     const tempFileName = baseName + "_TEMP_" + Date.now();
     const targetFolder = DriveApp.getFolderById(TARGET_FOLDER_ID);
 
@@ -1323,7 +1323,7 @@ function exportRevOceanTimesheet() {
     }
 
     const dateFormatted = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-    const excelBlob = response.getBlob().setName(`Zadania_Timesheet_${dateFormatted}.xlsx`);
+    const excelBlob = response.getBlob().setName(`Candido_Timesheet_${dateFormatted}.xlsx`);
     
     const finalFile = targetFolder.createFile(excelBlob);
     tempFile.setTrashed(true);

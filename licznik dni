@@ -1,12 +1,12 @@
 /**
- * Skrypt oblicza łączną sumę dni dla wszystkich zadań w arkuszu "Candido"
+ * Skrypt oblicza łączną sumę dni dla wszystkich zadań w arkuszu "Zadańia"
  * i WYŚWIETLA WYNIK TYLKO W DZIENNIKU (nie modyfikuje arkusza).
  */
 function obliczDniDlaWszystkichWierszy() {
-  const arkusz = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Candido");
+  const arkusz = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Zadańia");
   
   if (!arkusz) {
-    Logger.log("Błąd: Nie znaleziono zakładki 'Candido'");
+    Logger.log("Błąd: Nie znaleziono zakładki 'Zadańia'");
     return;
   }
 
@@ -39,7 +39,7 @@ function obliczDniDlaWszystkichWierszy() {
       const roznicaMs = Math.abs(dataKoniec - dataStart);
       
       // Obliczamy dni: dzielimy przez ilość milisekund w dobie. 
-      // Math.ceil zaokrągla w górę, a +1 wlicza zarówno dzień startu jak i końca (zgodnie z logiką Candido).
+      // Math.ceil zaokrągla w górę, a +1 wlicza zarówno dzień startu jak i końca (zgodnie z logiką Zadańia).
       const dni = Math.ceil(roznicaMs / (1000 * 60 * 60 * 24)) + 1;
       
       sumaWszystkichDni += dni;

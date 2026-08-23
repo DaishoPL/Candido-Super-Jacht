@@ -13,7 +13,7 @@ function forceDrivePermission() {
 function doGet() {
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('Seavia - Panel Brygadzisty')
+    .setTitle('Aplikacja testowa-dev')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
@@ -53,9 +53,8 @@ function getInitialData() {
 
   let totalWorkedHours = 0;
   let workedHoursByTask = {};
-  let spisHours = []; // Dla wykresów we froncie (podziały na pokłady/obszary)
+  let spisHours = []; 
 
-  // Obiekt do przetrzymywania godzin dla prac dodatkowych "- Extra Job"
   let extraJobs = {
     totalHours: 0,
     byDeck: {},
@@ -69,11 +68,10 @@ function getInitialData() {
       let timeStart = String(row[0]).trim(); // B
       let timeEnd = String(row[1]).trim();   // C
 
-      // Standaryzacja nazwy pokładu do wielkich liter (np. "Dk4" -> "DK4")
       let deck = String(row[2]).trim().toUpperCase(); // D
-      let area = String(row[3]).trim(); // E (Typ prac / Activity ID)
+      let area = String(row[3]).trim(); // E
       let taskName = String(row[4]).trim();  // F
-      let taskId = String(row[5]).trim();    // G (ID prac / zadania)
+      let taskId = String(row[5]).trim();    // G 
       let isCancelled = String(row[4]).includes("[ANULOWANE]") || taskId.includes("[ANULOWANE]");
       let techNameFromSpis = String(row[6]).trim(); // H
 
@@ -81,10 +79,8 @@ function getInitialData() {
         let duration = parseWorkTimeBackend(timeEnd) - parseWorkTimeBackend(timeStart);
         if (duration < 0) duration += 24; 
 
-        // Zaokrąglamy pojedynczy czas trwania do 2 miejsc po przecinku, aby uniknąć szumu JS
         duration = Math.round(duration * 100) / 100;
         if (duration > 0) {
-          // Szukamy frazy "- Extra Job" wyłącznie w kolumnie G (ID prac / taskId)
           if (taskId.toLowerCase().includes("- extra job")) {
             extraJobs.totalHours += duration;
             if (!extraJobs.byDeck[deck]) extraJobs.byDeck[deck] = 0;
@@ -98,12 +94,11 @@ function getInitialData() {
           if(!workedHoursByTask[key]) workedHoursByTask[key] = 0;
           workedHoursByTask[key] += duration;
 
-          // Dodajemy wpis do tablicy spisHours dla prawidłowego działania wszystkich wykresów realizacyjnych!
           spisHours.push({
             hours: duration,
             deck: deck,
             area: area,
-            idPrac: taskId, // Przekazujemy kolumnę G jako ID prac
+            idPrac: taskId, 
             taskName: taskName
           });
 
@@ -118,7 +113,6 @@ function getInitialData() {
     });
   }
 
-  // Precyzyjne zaokrąglanie wszystkich zagregowanych sum do 1 miejsca po przecinku
   totalWorkedHours = Math.round(totalWorkedHours * 10) / 10;
   extraJobs.totalHours = Math.round(extraJobs.totalHours * 10) / 10;
   Object.keys(extraJobs.byDeck).forEach(k => {
@@ -187,13 +181,14 @@ function getInitialData() {
         if (!tasksTree[currentDeck]) tasksTree[currentDeck] = {}; 
         if (!tasksTree[currentDeck][area]) tasksTree[currentDeck][area] = [];
 
-        let taskId = String(data[i][5] || "").trim(); // F - ID PRAC
+        let taskId = String(data[i][5] || "").trim(); 
         let key = currentDeck + "_" + taskName;
         let taskHours = workedHoursByTask[key] || 0;
         taskHours = Math.round(taskHours * 10) / 10;
+
         tasksTree[currentDeck][area].push({
           row: i + 1,
-          taskId: taskId, // Przekazujemy ID prac dla prawidłowego filtrowania Extra Job
+          taskId: taskId,
           taskName: taskName,
           progress: progressNum,
           plannedDays: plannedDays,
@@ -209,8 +204,8 @@ function getInitialData() {
     techStats: techStats,           
     totalWorkedHours: totalWorkedHours, 
     tasksTree: tasksTree,
-    spisHours: spisHours, // Bardzo ważne dla frontend (InitDashboard)
-    extraJobs: extraJobs // Dane dla wykresu kołowego prac dodatkowych
+    spisHours: spisHours, 
+    extraJobs: extraJobs 
   };
 }
 
@@ -396,7 +391,6 @@ function submitWorkReport(formData) {
     if (formData.isCustomTask) {
       if (sheetCandido) {
         idPrac = formData.customTaskId || "Dodatkowe";
-        // Sprawdź, czy do nowego ID należy dopisać "- Extra Job"
         if (formData.isExtraJob && !idPrac.toUpperCase().includes("- EXTRA JOB")) {
           idPrac += " - Extra Job";
         }
@@ -458,14 +452,12 @@ function submitWorkReport(formData) {
   }
 }
 
-// -------------------------------------------------------------
-// MODUŁ RAPORTÓW CANDIDO (ROZLICZENIA DLA KLIENTA)
-// -------------------------------------------------------------
 function getCandidoWeeklyReport(dateStr, includeBreaks) {
   if (!dateStr) return null;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return { decks: {}, weekInfo: {} };
+
   let selectedDate = new Date(dateStr);
   let dayOfWeek = selectedDate.getDay();
   let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
@@ -498,6 +490,7 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
     extraTasks: [],
     extraDeck: { tasks: {} }
   };
+
   let uniqueTasks = new Set();
   const sheetCandido = ss.getSheetByName('Candido');
   if (sheetCandido && sheetCandido.getLastRow() >= 3) {
@@ -509,6 +502,7 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
       }
     });
   }
+
   const spisData = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 1).getValues();
   for (let i = 0; i < spisData.length; i++) {
@@ -601,6 +595,7 @@ function getTimeByWeekReport(includeBreaks) {
       }
     });
   }
+
   let reportData = {
     settings: { includeBreaks: includeBreaks },
     decks: {},
@@ -609,6 +604,7 @@ function getTimeByWeekReport(includeBreaks) {
     extraTasks: [],
     extraDeck: { tasks: {} }
   };
+
   const spisData = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 1).getValues();
 
@@ -619,6 +615,7 @@ function getTimeByWeekReport(includeBreaks) {
     var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
     return weekNo;
   };
+
   for (let i = 0; i < spisData.length; i++) {
     let rowDate = rawDates[i][0];
     if (!(rowDate instanceof Date)) continue;
@@ -690,7 +687,6 @@ function getTimeByWeekReport(includeBreaks) {
   });
   reportData.extraTasks = Array.from(extraTasksSet).sort((a, b) => a.localeCompare(b));
 
-  reportData.allWeeks = Array.from(reportData.allWeeks);
   Object.keys(reportData.decks).forEach(d => {
      Object.keys(reportData.decks[d].tasks).forEach(t => {
        let task = reportData.decks[d].tasks[t];
@@ -715,24 +711,29 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return null;
+  
   let selectedDate = new Date(dateStr);
   let dayOfWeek = selectedDate.getDay();
   let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
   let monday = new Date(selectedDate.setDate(diff));
   let weekDates = [];
+  
   for (let i = 0; i < 7; i++) {
     let d = new Date(monday);
     d.setDate(monday.getDate() + i);
     weekDates.push(parseDateToYMD(d));
   }
+  
   let target = new Date(monday.valueOf());
   let dayNr = (monday.getDay() + 6) % 7;
   target.setDate(target.getDate() - dayNr + 3);
   let firstThursday = target.valueOf();
   target.setMonth(0, 1);
   if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  
   let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
   let year = target.getFullYear();
+  
   let reportData = {
     weekInfo: {
       weekNumber: weekNum,
@@ -741,12 +742,15 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
     },
     technicians: {}
   };
+  
   const spisData = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 1).getValues();
+  
   for (let i = 0; i < spisData.length; i++) {
     let rowDate = parseDateToYMD(rawDates[i][0]);
     let dayIndex = weekDates.indexOf(rowDate);
     if (dayIndex === -1) continue;
+    
     let rowStart = String(spisData[i][1]).trim();
     let rowEnd = String(spisData[i][2]).trim();
     let rowDeck = String(spisData[i][3]).trim().toUpperCase();
@@ -756,11 +760,14 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
     let techName = String(spisData[i][7]).trim();
     let isCancelled = rowTask.includes("[ANULOWANE]") || rowTask.includes("ANULOWANE");
     let isBreak = rowTask.toLowerCase().includes("przerwa") || rowTask.toLowerCase().includes("break") || rowTask.toLowerCase().includes("brake");
+    
     if (isBreak && !includeBreaks) continue;
     if (!rowStart || !rowEnd || isCancelled || !techName || !rowTask) continue;
+    
     let duration = parseWorkTimeBackend(rowEnd) - parseWorkTimeBackend(rowStart);
     if (duration < 0) duration += 24;
     duration = Math.round(duration * 100) / 100;
+    
     if (duration > 0) {
       if (!reportData.technicians[techName]) {
         reportData.technicians[techName] = {
@@ -780,21 +787,24 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
       reportData.technicians[techName].totalHours += duration;
     }
   }
-  // Zaokrąglenie łącznych godzin techników
+  
   Object.keys(reportData.technicians).forEach(techName => {
     reportData.technicians[techName].totalHours = Math.round(reportData.technicians[techName].totalHours * 10) / 10;
   });
+  
+  // URUCHOMIENIE W TLE: Synchronizacja z REV OCEAN - timesheet
+  syncWeeklyTimesheet(reportData);
+
   return reportData;
 }
 
-// --- ZMIENIONA FUNKCJA GENEROWANIA EXCELA (AUTOMATYCZNY ZAPIS JAKO .XLSX NA DYSKU) ---
 function generateStyledExcelReport(reportData, reportType) {
   try {
     const isWeekly = reportType === 'weekly';
     const baseName = "Candido_" + (isWeekly ? reportData.weekInfo.weekNumber : 'Annual') + "_Report";
     const tempFileName = baseName + "_TEMP_" + Date.now();
     const targetFolder = DriveApp.getFolderById(TARGET_FOLDER_ID);
-    // 1. Tworzymy tymczasowy Arkusz Google bezpośrednio w folderze docelowym
+
     const spreadsheet = SpreadsheetApp.create(tempFileName);
     const tempFile = DriveApp.getFileById(spreadsheet.getId());
     tempFile.moveTo(targetFolder);
@@ -808,9 +818,11 @@ function generateStyledExcelReport(reportData, reportType) {
     const green = "#bbf7d0";
     const borderColor = "#cbd5e1";
     let currentRow = 1;
+
     sheet.getRange(currentRow, 1, 1, 2).setValues([["Project name:", "REV OCEAN 19577"]]).setFontWeight("bold");
     sheet.getRange(currentRow, 2).setFontColor(seaviaBlue).setHorizontalAlignment("right");
     currentRow++;
+
     if (isWeekly) {
       sheet.getRange(currentRow, 1, 1, 2).setValues([["Week no.:", reportData.weekInfo.weekNumber]]).setFontWeight("bold");
       sheet.getRange(currentRow, 2).setFontColor(seaviaBlue).setHorizontalAlignment("right");
@@ -823,14 +835,18 @@ function generateStyledExcelReport(reportData, reportType) {
       sheet.getRange(currentRow, 2).setHorizontalAlignment("right");
       currentRow++;
     }
+
     sheet.getRange(currentRow, 1, 1, 2).setValues([["Paid Breaks:", reportData.settings.includeBreaks ? "YES" : "NO"]]).setFontWeight("bold");
     sheet.getRange(currentRow, 2).setFontColor(reportData.settings.includeBreaks ? "#166534" : "#94a3b8").setHorizontalAlignment("right");
     currentRow += 2;
+
     Object.keys(reportData.decks).sort().forEach(deckName => {
       let deckData = reportData.decks[deckName];
       if (!deckData.tasks || Object.keys(deckData.tasks).length === 0) return;
+
       sheet.getRange(currentRow, 1).setValue(isWeekly ? "WEEKLY SUM " + deckName : "ANNUAL TIME REPORT - " + deckName).setFontWeight("bold").setFontColor(seaviaBlue);
       currentRow++;
+
       let headers = ["No.", "Tasks", "Total"];
       let columnCount;
       if (isWeekly) {
@@ -841,13 +857,14 @@ function generateStyledExcelReport(reportData, reportType) {
         sortedWeeks.forEach(w => headers.push("W" + w));
         columnCount = 3 + sortedWeeks.length;
       }
+
       if (columnCount > 0) {
         let headerRange = sheet.getRange(currentRow, 1, 1, columnCount);
         headerRange.setValues([headers]).setBackground(headerColor).setFontWeight("bold");
         sheet.getRange(currentRow, 3).setBackground(totalHeaderColor);
       }
       currentRow++;
-      
+
       const renderRow = (taskName, index) => {
         let rowData = [index, taskName];
         if (isWeekly) {
@@ -863,6 +880,7 @@ function generateStyledExcelReport(reportData, reportType) {
             rowData.push(h > 0 ? h : 0);
           });
         }
+
         if (rowData.length > 2) {
           let rowRange = sheet.getRange(currentRow, 1, 1, rowData.length);
           rowRange.setValues([rowData]).setNumberFormat("0.0");
@@ -876,16 +894,10 @@ function generateStyledExcelReport(reportData, reportType) {
             let cell = sheet.getRange(currentRow, i);
             if (cell.getValue() > 0) cell.setBackground(lightGreen).setFontWeight("bold");
           }
-
-          // POPRAWKA: Wyróżnienie czcionki na czerwono dla zadań "Extra Job"
-          if (taskName.toLowerCase().includes("- extra job")) {
-            rowRange.setFontColor("#dc2626"); // Czerwona czcionka
-          }
         }
         currentRow++;
       };
 
-      // ZADANIE SUPERVISION JEST RENDEROWANE ZAWSZE NA SAMEJ GÓRZE (POZYCJA 0) oprócz pokładu TRAVEL
       if (deckName !== "TRAVEL") {
         renderRow("Supervision", 0);
       }
@@ -896,7 +908,6 @@ function generateStyledExcelReport(reportData, reportType) {
         filteredTasks = filteredTasks.filter(t => !t.toLowerCase().includes('break') && !t.toLowerCase().includes('przerwa'));
       }
 
-      // Zadanie travel widoczne wyłącznie na pokładzie TRAVEL, na innych ukryte
       if (deckName === "TRAVEL") {
         filteredTasks = filteredTasks.filter(t => t.toLowerCase() === "travel");
       } else {
@@ -908,16 +919,16 @@ function generateStyledExcelReport(reportData, reportType) {
           renderRow(taskName, taskIndex++);
         }
       });
-      // Wyliczamy faktyczną liczbę wygenerowanych wierszy danych na tym pokładzie
+
       let renderedRowCount = taskIndex;
       if (deckName !== "TRAVEL") {
-        renderedRowCount += 1; // Dla Supervision
+        renderedRowCount += 1;
       } else {
         renderedRowCount = filteredTasks.length;
       }
       if (renderedRowCount > 0) {
-        let tableStartRow = currentRow - renderedRowCount - 1; // Wracamy do wiersza nagłówka
-        let numRows = renderedRowCount + 1; // headers + wiersze danych
+        let tableStartRow = currentRow - renderedRowCount - 1; 
+        let numRows = renderedRowCount + 1; 
         if (tableStartRow > 0 && numRows > 0 && columnCount > 0) {
           let tableRange = sheet.getRange(tableStartRow, 1, numRows, columnCount);
           tableRange.setBorder(true, true, true, true, true, true, borderColor, SpreadsheetApp.BorderStyle.SOLID);
@@ -927,7 +938,6 @@ function generateStyledExcelReport(reportData, reportType) {
       currentRow += 2;
     });
 
-    // --- RENDEROWANIE PRAC DODATKOWYCH (EXTRA JOBS) NA SAMYM DOLE EXCELA ---
     if (reportData.extraTasks && reportData.extraTasks.length > 0) {
       sheet.getRange(currentRow, 1).setValue("PRACE DODATKOWE (EXTRA JOBS)").setFontWeight("bold").setFontColor("#dc2626");
       currentRow++;
@@ -972,7 +982,7 @@ function generateStyledExcelReport(reportData, reportType) {
           rowRange.setValues([rowData]).setNumberFormat("0.0");
           sheet.getRange(currentRow, 1, 1, 2).setNumberFormat("0");
           sheet.getRange(currentRow, 2).setHorizontalAlignment("left");
-          rowRange.setFontColor("#dc2626"); // Czerwona czcionka dla zadań Extra Job
+          rowRange.setFontColor("#dc2626"); 
 
           let totalCell = sheet.getRange(currentRow, 3);
           if (rowData[2] > 0) totalCell.setBackground(green).setFontWeight("bold"); else totalCell.setBackground(totalHeaderColor);
@@ -986,7 +996,6 @@ function generateStyledExcelReport(reportData, reportType) {
         extraTaskIndex++;
       });
 
-      // Rysowanie ramki dla tabeli Extra Jobs
       let renderedRowCount = reportData.extraTasks.length;
       if (renderedRowCount > 0) {
         let tableStartRow = currentRow - renderedRowCount - 1;
@@ -1000,26 +1009,23 @@ function generateStyledExcelReport(reportData, reportType) {
       currentRow += 2;
     }
 
-    // Wymuszamy natychmiastowe zrzucenie stylów i danych do arkusza Google Sheets przed konwersją
     SpreadsheetApp.flush();
-    // 2. Eksport pliku do formatu Excel (.xlsx) za pomocą wewnętrznego API Google
+
     const url = "https://docs.google.com/spreadsheets/d/" + spreadsheet.getId() + "/export?format=xlsx";
     const token = ScriptApp.getOAuthToken();
     const response = UrlFetchApp.fetch(url, {
-      headers: {
-        'Authorization': 'Bearer ' + token
-      },
+      headers: { 'Authorization': 'Bearer ' + token },
       muteHttpExceptions: true
     });
+
     if (response.getResponseCode() !== 200) {
       throw new Error("Błąd podczas konwersji arkusza do formatu Excel (.xlsx): " + response.getContentText());
     }
+
     const excelBlob = response.getBlob().setName(`${baseName}.xlsx`);
-    // 3. Zapisujemy ostateczny plik Excel (.xlsx) w Twoim docelowym folderze na Google Drive
     const excelFile = targetFolder.createFile(excelBlob);
-    // 4. Usuwamy tymczasowy Arkusz Google Sheets, aby nie robić bałaganu na Dysku
     tempFile.setTrashed(true);
-    // 5. Zwracamy bezpośredni link do pobrania pliku Excel (.xlsx) z Dysku Google
+
     const downloadUrl = `https://drive.google.com/uc?export=download&id=${excelFile.getId()}`;
     return {
       fileUrl: downloadUrl,
@@ -1031,9 +1037,6 @@ function generateStyledExcelReport(reportData, reportType) {
   }
 }
 
-/**
- * NOWE: Usuwa drużynę (team) - ustawia pustą wartość dla wszystkich techników z danej drużyny.
- */
 function deleteTeam(teamName) {
  if (!teamName || teamName.trim() === "") {
    return { success: false, message: "Nazwa drużyny nie może być pusta!" };
@@ -1049,7 +1052,7 @@ function deleteTeam(teamName) {
      const values = range.getValues();
      for (let i = 0; i < values.length; i++) {
        if (String(values[i][0]).trim().toLowerCase() === teamName.trim().toLowerCase()) {
-         dataSheet.getRange(9 + i, 1).setValue(""); // Czyścimy drużynę
+         dataSheet.getRange(9 + i, 1).setValue(""); 
          updatedCount++;
        }
      }
@@ -1060,9 +1063,6 @@ function deleteTeam(teamName) {
  }
 }
 
-/**
- * NOWE: Zmienia nazwę drużyny (team) we wszystkich wierszach w 'Data sheet'.
- */
 function renameTeam(oldName, newName) {
  if (!oldName || !newName || newName.trim() === "") {
    return { success: false, message: "Nazwy drużyn nie mogą być puste!" };
@@ -1089,28 +1089,42 @@ function renameTeam(oldName, newName) {
  }
 }
 
-/**
- * NOWE: Zapisuje plik kosztu (zdjęcie/paragon) do dedykowanego folderu Google Drive.
- * Loguje metadane (Data, Nazwa, Link) do arkusza "Koszty" w pliku Google Sheets.
- */
-function uploadCostFile(base64Data, fileName, costName, costDate) {
+function uploadCostFile(base64Data, fileName, costName, costDate, fileIndex = 0, totalFiles = 1) {
   try {
     const folderId = "1dtvg-bx_ePiMfsuf2kf0vGadlzNgHeeI";
     const folder = DriveApp.getFolderById(folderId);
     
-    // Parsowanie Base64
-    const contentType = base64Data.substring(base64Data.indexOf(":") + 1, base64Data.indexOf(";"));
-    const base64Clean = base64Data.substring(base64Data.indexOf(",") + 1);
-    const blob = Utilities.newBlob(Utilities.base64Decode(base64Clean), contentType, fileName);
+    const parts = base64Data.split(',');
+    const contentType = parts[0].match(/:(.*?);/)[1];
+    const rawBase64 = parts[1];
+    const decoded = Utilities.base64Decode(rawBase64);
     
-    // Standaryzacja nazwy: RRRR-MM-DD_NazwaKosztu_OryginalnaNazwa
-    const formattedName = `${costDate}_${costName.replace(/[\/\\?%*:|"<>]/g, '-')}_${fileName}`;
-    blob.setName(formattedName);
+    // 1. Wyciąganie oryginalnego rozszerzenia (np. .jpg, .pdf)
+    let extension = "";
+    const lastDotIndex = fileName.lastIndexOf('.');
+    if (lastDotIndex !== -1) {
+      extension = fileName.substring(lastDotIndex);
+    } else {
+      if (contentType.includes('pdf')) extension = '.pdf';
+      else if (contentType.includes('jpeg') || contentType.includes('jpg')) extension = '.jpg';
+      else if (contentType.includes('png')) extension = '.png';
+    }
     
-    // Zapis pliku
+    // 2. Czyszczenie nazwy (usuwamy tylko niedozwolone znaki w nazwach plików, pozwalamy na spacje)
+    const cleanCostName = costName.replace(/[\/\\?%*:|"<>]/g, '').trim();
+    
+    // 3. Dodanie numeracji, jeśli w jednej paczce jest więcej niż 1 plik 
+    let suffix = "";
+    if (totalFiles > 1) {
+      suffix = ` - plik ${fileIndex + 1}`;
+    }
+    
+    // 4. Budowa finalnej nowej nazwy
+    const newFileName = `${costDate} ${cleanCostName}${suffix}${extension}`;
+    
+    const blob = Utilities.newBlob(decoded, contentType, newFileName);
     const file = folder.createFile(blob);
     
-    // Logowanie metadanych w zakładce "Koszty"
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let sheetKoszty = ss.getSheetByName('Koszty');
     if (!sheetKoszty) {
@@ -1119,6 +1133,7 @@ function uploadCostFile(base64Data, fileName, costName, costDate) {
       sheetKoszty.getRange(1, 1, 1, 5).setFontWeight("bold");
     }
     const userEmail = Session.getActiveUser().getEmail() || "Nieznany użytkownik";
+    // Zapis do arkusza Google z zachowaniem oryginalnie wpisanej nazwy
     sheetKoszty.appendRow([new Date(), costDate, costName, file.getUrl(), userEmail]);
     
     return { success: true, message: "Koszt został pomyślnie zapisany w bazie i folderze!", fileUrl: file.getUrl() };
@@ -1128,75 +1143,193 @@ function uploadCostFile(base64Data, fileName, costName, costDate) {
   }
 }
 
-/**
- * Zapisuje przesłany plik kosztu (paragon/fakturę) bezpośrednio w dedykowanym folderze Google Drive.
- */
-function uploadCostFile(base64Data, fileName, costName, costDate) {
-  try {
-    const folderId = "1dtvg-bx_ePiMfsuf2kf0vGadlzNgHeeI";
-    const folder = DriveApp.getFolderById(folderId);
+// =======================================================================
+// NOWE: SYNCHRONIZACJA Z REV OCEAN - TIMESHEET (W tle)
+// =======================================================================
+function syncWeeklyTimesheet(reportData) {
+  if (!reportData || !reportData.weekInfo || !reportData.technicians) return { success: false, message: "Brak danych." };
 
-    // Wyciągamy czysty format Base64 (odcinamy nagłówek "data:image/jpeg;base64,")
-    const parts = base64Data.split(',');
-    const contentType = parts[0].match(/:(.*?);/)[1];
-    const rawBase64 = parts[1];
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetTime = ss.getSheetByName('REV OCEAN - timesheet');
+  if (!sheetTime) return { success: false, message: "Brak zakładki 'REV OCEAN - timesheet'." };
 
-    // Dekodujemy Base64 na bajty (blob)
-    const decoded = Utilities.base64Decode(rawBase64);
+  // Wymuszamy pobranie pełnego zakresu
+  const timeData = sheetTime.getDataRange().getValues();
+  if (timeData.length < 3) return { success: false, message: "Pusty arkusz timesheet." };
 
-    // Standaryzujemy nazwę pliku: RRRR-MM-DD_NazwaKosztu_NazwaPliku
-    const cleanDate = costDate.replace(/\//g, '-');
-    const cleanCostName = costName.replace(/[^a-zA-Z0-9-_]/g, '_');
-    const newFileName = `${cleanDate}_${cleanCostName}_${fileName}`;
+  const timezone = ss.getSpreadsheetTimeZone();
 
-    const blob = Utilities.newBlob(decoded, contentType, newFileName);
-    const file = folder.createFile(blob);
+  // 1. Zabezpieczone mapowanie dat (nagłówki) z Wiersza 3
+  let dateToColMap = {};
+  if (timeData[2]) {
+    for (let c = 3; c < timeData[2].length; c++) {
+      let rawDate = timeData[2][c];
+      let dStr = "";
+      
+      if (rawDate instanceof Date) {
+         dStr = Utilities.formatDate(rawDate, timezone, "yyyy-MM-dd");
+      } else if (typeof rawDate === 'string') {
+         let parsed = parseDateToYMD(rawDate);
+         if (parsed) dStr = parsed;
+      }
 
-    return {
-      success: true,
-      message: `Pomyślnie zapisano koszt i plik w archiwum: ${newFileName}`
-    };
-  } catch (e) {
-    Logger.log("Krytyczny błąd w uploadCostFile: " + e.message);
-    return {
-      success: false,
-      message: "Błąd podczas zapisu pliku na serwerze: " + e.message
-    };
+      if (dStr) {
+        dateToColMap[dStr] = c + 1; // +1 dla metody getRange()
+      }
+    }
   }
+
+  // 2. Bezpieczne mapowanie wszystkich istniejących techników z kolumny B!
+  let techToRowMap = {};
+  
+  // Skanujemy CAŁY plik, patrząc TYLKO NA KOLUMNĘ B (timeData[r][1])
+  for (let r = 3; r < timeData.length; r++) {
+    if (!timeData[r]) continue;
+
+    let tName = String(timeData[r][1] || "").trim(); // TYLKO KOLUMNA B
+    
+    if (tName) {
+      let normalized = tName.replace(/\s+/g, '').toLowerCase();
+      techToRowMap[normalized] = r + 1;
+    }
+  }
+
+  let updatesCount = 0;
+  let addedTechs = 0;
+
+  // Najpierw: Czyścimy komórki z obecnego tygodnia dla WSZYSTKICH techników z reportData
+  Object.keys(reportData.technicians).forEach(techName => {
+    let normalizedTechKey = String(techName).replace(/\s+/g, '').toLowerCase();
+    let rowIdx = techToRowMap[normalizedTechKey];
+    
+    if (rowIdx) {
+      reportData.weekInfo.dates.forEach(dDate => {
+        let colIdx = dateToColMap[dDate];
+        if (colIdx) {
+           let cell = sheetTime.getRange(rowIdx, colIdx);
+           cell.setValue("");
+           cell.setBackground(null);
+        }
+      });
+    }
+  });
+
+
+  // 3. Główna pętla wpisująca godziny i ewentualnie nowe osoby na czysto
+  Object.keys(reportData.technicians).forEach(techName => {
+    
+    let normalizedTechKey = String(techName).replace(/\s+/g, '').toLowerCase();
+    let rowIdx = techToRowMap[normalizedTechKey];
+
+    // Jeśli technika nie ma na liście w kolumnie B - dopisujemy!
+    if (!rowIdx) {
+       let targetSheetLastRow = sheetTime.getLastRow();
+       
+       // Szukamy pierwszego pustego miejsca od dołu patrząc WYŁĄCZNIE w kolumnę B.
+       let insertRow = targetSheetLastRow + 1;
+       const columnBValues = sheetTime.getRange("B1:B" + targetSheetLastRow).getValues();
+       
+       for(let i = columnBValues.length - 1; i >= 0; i--) {
+         if (String(columnBValues[i][0]).trim() !== "") {
+           insertRow = i + 2; 
+           break;
+         }
+       }
+
+       // Zapis do nowej linii - ZAWSZE w Kolumnie B
+       sheetTime.getRange(insertRow, 1).setValue(insertRow - 3); 
+       sheetTime.getRange(insertRow, 2).setValue(techName.toUpperCase()); 
+       sheetTime.getRange(insertRow, 2).setFontWeight("bold");
+
+       techToRowMap[normalizedTechKey] = insertRow; 
+       rowIdx = insertRow;
+       addedTechs++;
+    }
+
+    let techObj = reportData.technicians[techName];
+
+    // Iteracja po 7 dniach analizowanego tygodnia
+    techObj.days.forEach((tasksArray, dayIndex) => {
+      if (tasksArray.length === 0) return;
+
+      let dDate = reportData.weekInfo.dates[dayIndex];
+      let colIdx = dateToColMap[dDate];
+
+      if (!colIdx) return; 
+
+      let dailyTotalHours = 0;
+      let hasTravel = false;
+
+      tasksArray.forEach(t => {
+        dailyTotalHours += t.hours;
+        if (t.task.toLowerCase().includes("travel")) {
+          hasTravel = true;
+        }
+      });
+
+      if (dailyTotalHours > 0) {
+        let cell = sheetTime.getRange(rowIdx, colIdx);
+        cell.setValue(dailyTotalHours).setHorizontalAlignment("center");
+        
+        // Oznaczanie Travel
+        if (hasTravel) {
+          cell.setBackground("#FFF2CC");
+        }
+        updatesCount++;
+      }
+    });
+  });
+
+  // Wymuszamy, żeby Google od razu to narysował w bazie
+  SpreadsheetApp.flush(); 
+
+  return { success: true, updates: updatesCount, newTechs: addedTechs };
 }
-/**
- * Zapisuje przesłany plik kosztu (paragon/fakturę) bezpośrednio w dedykowanym folderze Google Drive.
- */
-function uploadCostFile(base64Data, fileName, costName, costDate) {
+
+// =======================================================================
+// EKSPORT ZAKŁADKI REV OCEAN DO EXCELA
+// =======================================================================
+function exportRevOceanTimesheet() {
   try {
-    const folderId = "1dtvg-bx_ePiMfsuf2kf0vGadlzNgHeeI";
-    const folder = DriveApp.getFolderById(folderId);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('REV OCEAN - timesheet');
+    if (!sheet) return { error: "Brak zakładki 'REV OCEAN - timesheet' w bazie." };
 
-    // Wyciągamy czysty format Base64 (odcinamy nagłówek "data:image/jpeg;base64,")
-    const parts = base64Data.split(',');
-    const contentType = parts[0].match(/:(.*?);/)[1];
-    const rawBase64 = parts[1];
+    const tempFileName = "Eksport_Timesheet_" + new Date().getTime();
+    const tempSs = SpreadsheetApp.create(tempFileName);
+    
+    sheet.copyTo(tempSs).setName("REV OCEAN - timesheet");
+    
+    const defaultSheet = tempSs.getSheets()[0];
+    if(tempSs.getSheets().length > 1) {
+      tempSs.deleteSheet(defaultSheet);
+    }
 
-    // Dekodujemy Base64 na bajty (blob)
-    const decoded = Utilities.base64Decode(rawBase64);
+    const targetFolder = DriveApp.getFolderById(TARGET_FOLDER_ID);
+    const tempFile = DriveApp.getFileById(tempSs.getId());
+    tempFile.moveTo(targetFolder);
 
-    // Standaryzujemy nazwę pliku: RRRR-MM-DD_NazwaKosztu_NazwaPliku
-    const cleanDate = costDate.replace(/\//g, '-');
-    const cleanCostName = costName.replace(/[^a-zA-Z0-9-_]/g, '_');
-    const newFileName = `${cleanDate}_${cleanCostName}_${fileName}`;
+    SpreadsheetApp.flush();
 
-    const blob = Utilities.newBlob(decoded, contentType, newFileName);
-    const file = folder.createFile(blob);
+    const url = "https://docs.google.com/spreadsheets/d/" + tempSs.getId() + "/export?format=xlsx";
+    const token = ScriptApp.getOAuthToken();
+    const response = UrlFetchApp.fetch(url, {
+      headers: { 'Authorization': 'Bearer ' + token },
+      muteHttpExceptions: true
+    });
 
-    return {
-      success: true,
-      message: `Pomyślnie zapisano koszt i plik w archiwum: ${newFileName}`
-    };
+    if (response.getResponseCode() !== 200) {
+      throw new Error("Błąd podczas konwersji arkusza.");
+    }
+
+    const dateFormatted = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+    const excelBlob = response.getBlob().setName(`Candido_Timesheet_${dateFormatted}.xlsx`);
+    
+    const finalFile = targetFolder.createFile(excelBlob);
+    tempFile.setTrashed(true);
+
+    return { success: true, fileUrl: `https://drive.google.com/uc?export=download&id=${finalFile.getId()}` };
   } catch (e) {
-    Logger.log("Krytyczny błąd w uploadCostFile: " + e.message);
-    return {
-      success: false,
-      message: "Błąd podczas zapisu pliku na serwerze: " + e.message
-    };
+    return { error: e.message };
   }
 }

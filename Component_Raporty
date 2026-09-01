@@ -1,6 +1,5 @@
 <!-- Wymagane biblioteki do eksportu (PDF) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <div class="bg-white rounded-lg shadow-sm p-4 md:p-8 border border-gray-100 animate-fade-in">
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
@@ -15,12 +14,12 @@
     <!-- Wiersz 1: Ustawienie daty Od-Do i płatnych przerw -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end w-full">
       <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data od</label>
-        <input type="date" id="reportDate" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data od (Poniedziałek / Dowolny dzień)</label>
+        <input type="date" id="reportDate" onchange="adjustWeekDates()" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
       </div>
       <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do (domyślnie: data od + 7 dni)</label>
-        <input type="date" id="reportDateTo" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do (Niedziela włącznie)</label>
+        <input type="date" id="reportDateTo" disabled class="w-full border border-slate-300 rounded p-2.5 bg-slate-100 font-medium text-slate-500 cursor-not-allowed">
       </div>
       <div class="flex items-center h-[46px] pb-1">
         <label class="flex items-center space-x-2 cursor-pointer group">
@@ -64,41 +63,44 @@
   let currentReportType = 'weekly';
 
   document.addEventListener("DOMContentLoaded", () => {
-    const fromInput = document.getElementById('reportDate');
-    const toInput = document.getElementById('reportDateTo');
-    if (!fromInput || !toInput) return;
-
-    const today = new Date();
-    fromInput.value = formatInputDate(today);
-    toInput.value = formatInputDate(addDays(today, 7));
-    fromInput.addEventListener('change', syncDateRange);
-    toInput.addEventListener('change', () => {
-      // Zmiana ręczna daty do nie zmienia daty od.
-      // Data od pozostaje wartością początkową, a data do może być krotsza/dłuższa.
-    });
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('reportDate');
+    if (dateInput) {
+      dateInput.value = today;
+      adjustWeekDates();
+    }
   });
 
-  function formatInputDate(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
-
-  function addDays(date, days) {
-    const nextDate = new Date(date);
-    nextDate.setDate(nextDate.getDate() + days);
-    return nextDate;
-  }
-
-  function syncDateRange() {
+  // Automatyczne ustawianie daty Od na Poniedziałek i Do na Niedzielę
+  function adjustWeekDates() {
     const fromInput = document.getElementById('reportDate');
     const toInput = document.getElementById('reportDateTo');
     if (!fromInput || !toInput || !fromInput.value) return;
 
-    const [year, month, day] = fromInput.value.split('-').map(Number);
-    const selectedDate = new Date(year, month - 1, day);
-    toInput.value = formatInputDate(addDays(selectedDate, 7));
+    // Bezpieczne parsowanie daty lokalnej
+    const parts = fromInput.value.split('-');
+    const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (isNaN(selectedDate.getTime())) return;
+
+    const day = selectedDate.getDay(); // 0 = Niedziela, 1 = Poniedziałek, ..., 6 = Sobota
+    // Oblicz dni do poniedziałku i niedzieli tego samego tygodnia
+    const daysToMonday = day === 0 ? -6 : 1 - day;
+    const mondayDate = new Date(selectedDate);
+    mondayDate.setDate(selectedDate.getDate() + daysToMonday);
+
+    const sundayDate = new Date(mondayDate);
+    sundayDate.setDate(mondayDate.getDate() + 6);
+
+    const formatDate = (d) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    // Ustawiamy wartości w polach
+    fromInput.value = formatDate(mondayDate);
+    toInput.value = formatDate(sundayDate);
   }
 
   function fetchWeeklyReport() {
@@ -148,32 +150,11 @@
       .getTimeByWeekReport(includeBreaks);
   }
 
-  function buildTimesheetSignatureMarkup() {
-    return `
-      <table class="ts-signature-table" aria-label="Signature fields">
-        <tbody>
-          <tr>
-            <td class="ts-signature-cell">
-              <div class="ts-signature-label">Contractor</div>
-              <div class="ts-signature-line"></div>
-            </td>
-            <td class="ts-signature-cell">
-              <div class="ts-signature-label">Work recipient</div>
-              <div class="ts-signature-line"></div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    `;
-  }
-
   function fetchTechnicianTimesheets() {
     const dateStr = document.getElementById('reportDate').value;
-    const dateToStr = document.getElementById('reportDateTo').value;
     const includeBreaks = document.getElementById('reportIncludeBreaks').checked;
     const btn = document.getElementById('btnGenerateTimesheets');
-    if (!dateStr || !dateToStr) { alert("Wybierz datę od i datę do."); return; }
-    if (dateToStr < dateStr) { alert("Data do nie może być wcześniejsza niż data od."); return; }
+    if (!dateStr) { alert("Wybierz datę z tygodnia!"); return; }
 
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Przygotowuję karty...';
     btn.disabled = true;
@@ -194,247 +175,67 @@
         btn.innerHTML = '<i class="fa-solid fa-users-viewfinder mr-2"></i> Karty pracy PDF';
         btn.disabled = false;
       })
-      .getTechnicianWeeklyReports(dateStr, dateToStr, includeBreaks);
+      .getTechnicianWeeklyReports(dateStr, includeBreaks);
   }
 
   function generateTechnicianPDFs(data, btnElement) {
-    const dayNames = ['SUN.', 'MON.', 'TUE.', 'WED.', 'THU.', 'FRI.', 'SAT.'];
-    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, character => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-    })[character]);
-    const formatDate = date => date.split('-').reverse().join('.');
-    const header = data.header || {};
-    const timesheetStyles = `
-      .ts-container { width: 1050px; font-family: Arial, sans-serif; color: #111; background: #fff; }
-      .ts-page { box-sizing: border-box; height: 198mm; padding: 3mm; background: #fff; overflow: hidden; page-break-after: always; }
-      .ts-page:last-child { page-break-after: auto; }
-      .ts-title-bar { padding: 8px 12px; background: #444; color: #fff; font-size: 18px; font-weight: bold; letter-spacing: 1px; }
-      .ts-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-      .ts-table th, .ts-table td { border: 1px solid #222; padding: 2px 4px; vertical-align: middle; }
-      .ts-info { font-size: 10px; }
-      .ts-info .label, .ts-grid th, .ts-total td { font-weight: bold; background: #e6e6e6; }
-      .ts-info .label { width: 80px; }
-      .ts-grid { font-size: var(--ts-font-size, 10px); }
-      .ts-grid th { text-align: center; white-space: nowrap; }
-      .ts-grid td { height: var(--ts-row-height, 16px); }
-      .ts-center { text-align: center; }
-      .ts-day { width: 55px; font-weight: bold; text-align: center; }
-      .ts-total td { font-size: 12px; }
-      .ts-signature-table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-      .ts-signature-cell { width: 50%; padding: 0 8px 0 0; }
-      .ts-signature-cell:last-child { padding-right: 0; padding-left: 8px; }
-      .ts-signature-label { font-size: 10px; font-weight: bold; color: #333; margin-bottom: 4px; }
-      .ts-signature-line { height: 26px; border-bottom: 1px solid #222; }
-    `;
-    let html = '<div class="ts-container">';
+    window.scrollTo(0, 0);
+    setTimeout(() => {
+      const dayNames = ["MON.", "TUE.", "WED.", "THU.", "FRI.", "SAT.", "SUN."];
+      let html = `
+        <style>
+          .ts-container { font-family: Arial, sans-serif; background-color: #ffffff; width: 1050px; color: #000000; } .ts-page { padding: 20px; page-break-after: always; box-sizing: border-box; background-color: #ffffff; } .ts-page:last-child { page-break-after: auto; } .ts-logo-bar { background-color: #4a4a4a; color: white; padding: 10px 15px; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 5px; position: relative;} .ts-logo-bar::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 30%; background-color: #555555; clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%); } .ts-logo-text { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 20px; letter-spacing: 2px; position: relative; z-index: 10;} .ts-logo-text span { font-weight: bold; } .ts-address { font-size: 9px; color: #666; margin-bottom: 15px; padding-left: 5px;} .ts-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; } .ts-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; } .ts-table th, .ts-table td { border: 1px solid #333; padding: 4px 6px; text-align: left; vertical-align: middle; } .ts-info td { padding: 4px 6px; } .ts-label { font-weight: bold; font-size: 11px; width: 80px; border-right: none;} .ts-value { border-left: none; font-size: 11px;} .ts-grid th { background-color: #e8e8e8; font-weight: normal; text-align: center; font-size: 10px; padding: 6px;} .ts-grid td.day-col { width: 50px; font-weight: bold; font-size: 10px; vertical-align: middle; text-align: center;} .ts-grid td { font-size: 10px; height: 25px;} .ts-center { text-align: center; vertical-align: middle !important;} .ts-total td { background-color: #e8e8e8; font-weight: bold; font-size: 11px;} .ts-signs { display: flex; justify-content: space-around; margin-top: 30px; font-size: 11px;} .ts-sign-box { text-align: center; width: 250px; } .ts-sign-line { border-bottom: 1px solid #333; margin-bottom: 5px; height: 25px; }
+        </style>
+        <div class="ts-container">`;
 
-    Object.keys(data.technicians).sort().forEach(techName => {
-      const technician = data.technicians[techName];
-      const taskRowCount = technician.days.reduce((total, tasks) => total + Math.max(tasks.length, 1), 0);
-      const rowHeight = Math.max(9, Math.min(16, Math.floor(300 / (taskRowCount + 9))));
-      const fontSize = rowHeight < 12 ? 8 : rowHeight < 14 ? 9 : 10;
-      html += `<section class="ts-page" style="--ts-row-height:${rowHeight}px;--ts-font-size:${fontSize}px">
-        <div class="ts-title-bar">${escapeHtml(header.title)}</div>
-        <table class="ts-table ts-info">
-          <tbody>
-            <tr><td class="label">COMPANY</td><td>${escapeHtml(header.company)}</td><td class="label">PROJECT</td><td>${escapeHtml(header.project)}</td></tr>
-            <tr><td class="label">WORKER</td><td colspan="3">${escapeHtml(techName)}</td></tr>
-            <tr><td class="label">WEEK</td><td>${data.weekInfo.weekNumber}</td><td class="label">YEAR</td><td>${data.weekInfo.year}</td></tr>
-          </tbody>
-        </table>
-        <table class="ts-table ts-grid">
-          <thead><tr><th>DAY</th><th>DATE</th><th>FROM</th><th>TO</th><th>HOURS</th><th>TASK ID</th><th>TASK</th><th>DECK</th><th>ROOM</th></tr></thead>
-          <tbody>`;
-
-      technician.days.forEach((tasks, index) => {
-        const date = data.weekInfo.dates[index];
-        const dayName = dayNames[new Date(`${date}T00:00:00`).getDay()];
-        if (tasks.length === 0) {
-          html += `<tr><td class="ts-day">${dayName}</td><td class="ts-center">${formatDate(date)}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
-          return;
-        }
-
-        tasks.forEach((task, taskIndex) => {
-          html += '<tr>';
-          if (taskIndex === 0) {
-            html += `<td class="ts-day" rowspan="${tasks.length}">${dayName}</td><td class="ts-center" rowspan="${tasks.length}">${formatDate(date)}</td>`;
+      Object.keys(data.technicians).sort().forEach(techName => {
+        let tech = data.technicians[techName];
+        html += `
+          <div class="ts-page">
+            <div class="ts-logo-bar"><div class="ts-logo-text"><span>CÁNDIDO</span> HERMIDA</div></div>
+            <div class="ts-address">Industrias Cándido Hermida, S.L CIF: B15057474 Pol. Ind. Rio do Pozo, Avda. Bernardo Romero, Parcela G2, 15570 Narón, A Coruña, España.</div>
+            <div class="ts-title">HOUR LIST</div>
+            <table class="ts-table ts-info">
+              <tr><td class="ts-label">COMPANY:</td><td class="ts-value">SEAVIA</td><td class="ts-label">SHIPYARD:</td><td class="ts-value">DAMEN</td><td class="ts-label" style="width: 100px;">PROJECT:</td><td class="ts-value font-bold">REV OCEAN 19577</td></tr>
+              <tr><td class="ts-label">WORKER:</td><td colspan="5" class="ts-value" style="font-weight: bold; text-transform: uppercase;">${techName}</td></tr>
+              <tr><td class="ts-label">WEEK:</td><td class="ts-value" colspan="2">${data.weekInfo.weekNumber}</td><td class="ts-label">YEAR:</td><td class="ts-value" colspan="2">${data.weekInfo.year}</td></tr>
+            </table>
+            <table class="ts-table ts-grid">
+              <thead><tr><th width="8%"></th><th width="12%">DATE</th><th width="8%">FROM</th><th width="8%">TO</th><th width="8%">HOURS</th><th width="32%">TASK</th><th width="10%">DECK</th><th width="14%">ROOM</th></tr></thead>
+              <tbody>`;
+        
+        tech.days.forEach((tasksArray, dayIndex) => {
+          let dName = dayNames[dayIndex];
+          let dDate = data.weekInfo.dates[dayIndex].split('-').reverse().join('.'); 
+          if (tasksArray.length === 0) {
+            html += `<tr><td class="day-col">${dName}</td><td class="ts-center">${dDate}</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+          } else {
+            tasksArray.forEach((t, index) => {
+              html += `<tr>`;
+              if (index === 0) {
+                html += `<td class="day-col" rowspan="${tasksArray.length}">${dName}</td>`;
+                html += `<td class="ts-center" rowspan="${tasksArray.length}">${dDate}</td>`;
+              }
+              html += `<td class="ts-center">${t.start}</td><td class="ts-center">${t.end}</td><td class="ts-center font-bold">${t.hours.toFixed(1)}</td><td>${t.task}</td><td class="ts-center">${t.deck}</td><td class="ts-center">${t.roomId || '-'}</td></tr>`;
+            });
           }
-          html += `<td class="ts-center">${escapeHtml(task.start)}</td><td class="ts-center">${escapeHtml(task.end)}</td><td class="ts-center">${Number(task.hours).toFixed(1)}</td><td class="ts-center">${escapeHtml(task.taskId)}</td><td>${escapeHtml(task.task)}</td><td class="ts-center">${escapeHtml(task.deck)}</td><td class="ts-center">${escapeHtml(task.roomId)}</td></tr>`;
         });
+        html += `<tr class="ts-total"><td class="day-col">TOTAL</td><td></td><td></td><td></td><td class="ts-center">${tech.totalHours.toFixed(1)}</td><td></td><td></td><td></td></tr></tbody></table>
+            <div class="ts-signs">
+              <div class="ts-sign-box"><div class="ts-sign-line"></div>SUBCONTRACTOR SIGNATURE</div>
+              <div class="ts-sign-box"><div class="ts-sign-line"></div>CH RESPONSIBLE SIGNATURE</div>
+            </div>
+          </div>`;
       });
-
-      html += `<tr class="ts-total"><td colspan="4">TOTAL</td><td class="ts-center">${Number(technician.totalHours).toFixed(1)}</td><td colspan="4"></td></tr></tbody></table>
-      ${buildTimesheetSignatureMarkup()}
-      </section>`;
-    });
-    html += '</div>';
-
-    const previousStyle = document.getElementById('timesheet-pdf-styles');
-    if (previousStyle) previousStyle.remove();
-    const styleTag = document.createElement('style');
-    styleTag.id = 'timesheet-pdf-styles';
-    styleTag.textContent = timesheetStyles;
-    document.head.appendChild(styleTag);
-
-    const savePdf = () => {
-      if (!window.jspdf || !window.jspdf.jsPDF) {
-        alert('Błąd: biblioteka PDF nie została załadowana. Odśwież stronę i spróbuj ponownie.');
-        return;
-      }
-
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const marginX = 10;
-      const marginY = 10;
-      const tableColumns = ['DAY', 'DATE', 'FROM', 'TO', 'HOURS', 'TASK ID', 'TASK', 'DECK', 'ROOM'];
-      const colWidths = [18, 20, 15, 15, 15, 23, 90, 18, 14];
-      const safeText = (value) => String(value ?? '').trim();
-
-      const drawCell = (x, y, width, height, text, isHeader = false, align = 'left', fill = false) => {
-        if (fill) {
-          pdf.setFillColor(230, 230, 230);
-          pdf.rect(x, y, width, height, 'F');
-        }
-        pdf.setDrawColor(120, 120, 120);
-        pdf.rect(x, y, width, height);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(isHeader ? 7.4 : 6.8);
-        const value = safeText(text);
-        const textX = align === 'center' ? x + width / 2 : x + 1.8;
-        const textY = y + (height / 2) + 1.1;
-        pdf.text(value, textX, textY, { align: align === 'center' ? 'center' : 'left', baseline: 'middle' });
-      };
-
-      const drawSignatureArea = (label, x, y, width) => {
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(8);
-        pdf.text(label, x + 2, y + 4);
-        pdf.line(x, y + 8, x + width, y + 8);
-      };
-
-      const drawInfoField = (x, y, label, value, labelWidth, valueWidth, isBold = false) => {
-        pdf.setDrawColor(0, 0, 0);
-        pdf.setFillColor(230, 230, 230);
-        pdf.rect(x, y, labelWidth + valueWidth, 8, 'F');
-
-        pdf.setFillColor(255, 255, 255);
-        pdf.rect(x + labelWidth, y, valueWidth, 8, 'F');
-        pdf.rect(x, y, labelWidth + valueWidth, 8);
-
-        pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
-        pdf.setFontSize(7.5);
-        pdf.text(String(label || '').toUpperCase(), x + 2, y + 5.2);
-
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(7.5);
-        const safe = String(value ?? '').trim() || '';
-        pdf.text(safe, x + labelWidth + 3, y + 5.2);
-      };
-
-      const techNames = Object.keys(data.technicians).sort();
-      techNames.forEach((techName, techIndex) => {
-        if (techIndex > 0) {
-          pdf.addPage();
-        }
-
-        let cursorY = marginY;
-        const technician = data.technicians[techName];
-
-        pdf.setFillColor(60, 60, 60);
-        pdf.rect(marginX, cursorY, pageWidth - marginX * 2, 8, 'F');
-        pdf.setTextColor(255, 255, 255);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(13);
-        pdf.text((header.title || 'KARTA TESTOWA').toUpperCase(), marginX + 3, cursorY + 5.4);
-        pdf.setTextColor(0, 0, 0);
-        cursorY += 12;
-
-        const blockWidth = pageWidth - marginX * 2;
-        const leftBoxX = marginX;
-        const rightBoxX = marginX + blockWidth / 2 + 3;
-        const leftBoxWidth = blockWidth / 2 - 3;
-        const rightBoxWidth = blockWidth / 2 - 3;
-
-        drawInfoField(leftBoxX, cursorY, 'COMPANY', header.company || '-', 28, leftBoxWidth - 28, true);
-        drawInfoField(rightBoxX, cursorY, 'PROJECT', header.project || '-', 30, rightBoxWidth - 30, true);
-        cursorY += 8;
-
-        drawInfoField(leftBoxX, cursorY, 'WORKER', techName, 28, leftBoxWidth - 28, true);
-        drawInfoField(rightBoxX, cursorY, ' ', ' ', 30, rightBoxWidth - 30, true);
-        cursorY += 8;
-
-        drawInfoField(leftBoxX, cursorY, 'WEEK', data.weekInfo.weekNumber, 28, leftBoxWidth - 28, true);
-        drawInfoField(rightBoxX, cursorY, 'YEAR', data.weekInfo.year, 30, rightBoxWidth - 30, true);
-        cursorY += 10;
-
-        let tableTop = cursorY;
-        let x = marginX;
-        tableColumns.forEach((columnName, idx) => {
-          drawCell(x, tableTop, colWidths[idx], 7, columnName, true, idx === 4 || idx === 5 || idx === 8 ? 'center' : 'left', true);
-          x += colWidths[idx];
-        });
-        tableTop += 7;
-
-        technician.days.forEach((tasks, dayIndex) => {
-          const date = data.weekInfo.dates[dayIndex];
-          const dayName = dayNames[new Date(`${date}T00:00:00`).getDay()];
-          const rowCount = Math.max(tasks.length || 1, 1);
-          if (tableTop + rowCount * 7 > pageHeight - 35) {
-            pdf.addPage();
-            tableTop = marginY + 8;
-            x = marginX;
-            tableColumns.forEach((columnName, idx) => {
-              drawCell(x, tableTop, colWidths[idx], 7, columnName, true, idx === 4 || idx === 5 || idx === 8 ? 'center' : 'left', true);
-              x += colWidths[idx];
-            });
-            tableTop += 7;
-          }
-
-          if (!tasks.length) {
-            const row = [dayName, formatDate(date), '', '', '', '', '', '', ''];
-            let xx = marginX;
-            row.forEach((cell, idx) => {
-              drawCell(xx, tableTop, colWidths[idx], 7, cell, false, idx === 4 || idx === 5 || idx === 8 ? 'center' : 'left');
-              xx += colWidths[idx];
-            });
-            tableTop += 7;
-            return;
-          }
-
-          tasks.forEach((task, taskIndex) => {
-            const row = [taskIndex === 0 ? dayName : '', taskIndex === 0 ? formatDate(date) : '', task.start || '', task.end || '', Number(task.hours).toFixed(1), task.taskId || '', task.task || '', task.deck || '', task.roomId || ''];
-            let xx = marginX;
-            row.forEach((cell, idx) => {
-              drawCell(xx, tableTop, colWidths[idx], 7, cell, false, idx === 4 || idx === 5 || idx === 8 ? 'center' : 'left');
-              xx += colWidths[idx];
-            });
-            tableTop += 7;
-          });
-        });
-
-        const totalY = tableTop + 2;
-        const totalHoursX = marginX + colWidths.slice(0, 4).reduce((sum, width) => sum + width, 0) + 1;
-        pdf.setFillColor(230, 230, 230);
-        pdf.rect(marginX, totalY, pageWidth - marginX * 2, 7, 'F');
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(8);
-        pdf.text('TOTAL', marginX + 2, totalY + 4.8);
-        pdf.text(Number(technician.totalHours).toFixed(1), totalHoursX + 8, totalY + 4.8, { align: 'left' });
-
-        const sigY = Math.min(pageHeight - 28, totalY + 16);
-        drawSignatureArea('Accepting Party', marginX + 16, sigY, 62);
-        drawSignatureArea('The Contractor', pageWidth - 96, sigY, 62);
+      html += `</div>`;
+      
+      const opt = { margin: 0.3, filename: `Karty_Pracy_Seavia_W${data.weekInfo.weekNumber}_${data.weekInfo.year}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' }, jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' } };
+      
+      html2pdf().set(opt).from(html).save().then(() => {
+        btnElement.innerHTML = '<i class="fa-solid fa-users-viewfinder mr-2"></i> Karty pracy PDF';
+        btnElement.disabled = false;
       });
-
-      pdf.save(`Karty_Pracy_W${data.weekInfo.weekNumber}_${data.weekInfo.year}.pdf`);
-    };
-
-    savePdf();
-
-    btnElement.innerHTML = '<i class="fa-solid fa-users-viewfinder mr-2"></i> Karty pracy PDF';
-    btnElement.disabled = false;
+    }, 0);
   }
 
   function renderReport(data) {

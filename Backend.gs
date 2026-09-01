@@ -706,7 +706,11 @@ function getTimeByWeekReport(includeBreaks) {
   return reportData;
 }
 
-function getTechnicianWeeklyReports(dateStr, includeBreaks) {
+function getTechnicianWeeklyReports(dateStr, dateToStr, includeBreaks) {
+  if (arguments.length === 2 && typeof dateToStr === 'boolean') {
+    includeBreaks = dateToStr;
+    dateToStr = null;
+  }
   if (!dateStr) return null;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');

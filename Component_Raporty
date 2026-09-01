@@ -19,7 +19,7 @@
         <input type="date" id="reportDate" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
       </div>
       <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do</label>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do (domyślnie: data od + 7 dni)</label>
         <input type="date" id="reportDateTo" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
       </div>
       <div class="flex items-center h-[46px] pb-1">
@@ -69,13 +69,13 @@
     if (!fromInput || !toInput) return;
 
     const today = new Date();
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - today.getDay());
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    fromInput.value = formatInputDate(weekStart);
-    toInput.value = formatInputDate(weekEnd);
-    fromInput.addEventListener('change', adjustWeekDates);
+    fromInput.value = formatInputDate(today);
+    toInput.value = formatInputDate(addDays(today, 7));
+    fromInput.addEventListener('change', syncDateRange);
+    toInput.addEventListener('change', () => {
+      // Zmiana ręczna daty do nie zmienia daty od.
+      // Data od pozostaje wartością początkową, a data do może być krotsza/dłuższa.
+    });
   });
 
   function formatInputDate(date) {
@@ -85,15 +85,20 @@
     return `${year}-${month}-${day}`;
   }
 
-  function adjustWeekDates() {
+  function addDays(date, days) {
+    const nextDate = new Date(date);
+    nextDate.setDate(nextDate.getDate() + days);
+    return nextDate;
+  }
+
+  function syncDateRange() {
     const fromInput = document.getElementById('reportDate');
     const toInput = document.getElementById('reportDateTo');
     if (!fromInput || !toInput || !fromInput.value) return;
 
     const [year, month, day] = fromInput.value.split('-').map(Number);
     const selectedDate = new Date(year, month - 1, day);
-    selectedDate.setDate(selectedDate.getDate() + 7);
-    toInput.value = formatInputDate(selectedDate);
+    toInput.value = formatInputDate(addDays(selectedDate, 7));
   }
 
   function fetchWeeklyReport() {

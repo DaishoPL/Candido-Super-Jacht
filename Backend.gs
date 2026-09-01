@@ -383,6 +383,19 @@ function parseDateToYMD(val) {
   return null;
 }
 
+function getIsoWeekNumber(dateValue) {
+  if (!dateValue) return null;
+  const date = dateValue instanceof Date ? new Date(dateValue.getTime()) : new Date(dateValue);
+  if (isNaN(date.getTime())) return null;
+
+  const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = utcDate.getUTCDay() || 7;
+  utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
+  const weekNumber = Math.ceil((((utcDate - yearStart) / 86400000) + 1) / 7);
+  return weekNumber;
+}
+
 function submitWorkReport(formData) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -452,38 +465,31 @@ function submitWorkReport(formData) {
   }
 }
 
-function getCandidoWeeklyReport(dateStr, includeBreaks) {
+function getCandidoWeeklyReport(dateStr, dateToStr, includeBreaks) {
+  if (arguments.length === 2 && typeof dateToStr === 'boolean') {
+    includeBreaks = dateToStr;
+    dateToStr = null;
+  }
   if (!dateStr) return null;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return { decks: {}, weekInfo: {} };
 
-  let selectedDate = new Date(dateStr);
-  let dayOfWeek = selectedDate.getDay();
-  let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-  let monday = new Date(selectedDate.setDate(diff));
-  let weekDates = [];
-  for (let i = 0; i < 7; i++) {
-    let d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    weekDates.push(parseDateToYMD(d));
+  const startDate = new Date(dateStr);
+  const endDate = dateToStr ? new Date(dateToStr) : new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + 7);
+  const weekDates = [];
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    weekDates.push(parseDateToYMD(new Date(d)));
   }
-  let target = new Date(monday.valueOf());
-  let dayNr = (monday.getDay() + 6) % 7;
-  target.setDate(target.getDate() - dayNr + 3);
-  let firstThursday = target.valueOf();
-  target.setMonth(0, 1);
-  if (target.getDay() !== 4) {
-      target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-  }
-  let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
+
+  const weekNum = getIsoWeekNumber(startDate) ?? dateStr;
 
   let reportData = {
     settings: { includeBreaks: includeBreaks },
     weekInfo: {
-      weekNumber: "W" + weekNum,
+      weekNumber: weekNum,
       start: weekDates[0],
-      end: weekDates[6]
+      end: weekDates[weekDates.length - 1]
     },
     decks: {},
     allTasks: [],
@@ -579,7 +585,12 @@ function getCandidoWeeklyReport(dateStr, includeBreaks) {
   return reportData;
 }
 
-function getTimeByWeekReport(includeBreaks) {
+function getTimeByWeekReport(dateStr, dateToStr, includeBreaks) {
+  if (arguments.length === 2 && typeof dateToStr === 'boolean') {
+    includeBreaks = dateToStr;
+    dateToStr = null;
+  }
+  if (!dateStr) return { decks: {}, allTasks: [], allWeeks: [] };
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return { decks: {}, allTasks: [], allWeeks: [] };
@@ -596,6 +607,13 @@ function getTimeByWeekReport(includeBreaks) {
     });
   }
 
+  const startDate = new Date(dateStr);
+  const endDate = dateToStr ? new Date(dateToStr) : new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + 7);
+  const rangeDates = [];
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    rangeDates.push(parseDateToYMD(new Date(d)));
+  }
+
   let reportData = {
     settings: { includeBreaks: includeBreaks },
     decks: {},
@@ -608,18 +626,9 @@ function getTimeByWeekReport(includeBreaks) {
   const spisData = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 1).getValues();
 
-  const getWeekNumber = (d) => {
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-    var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    return weekNo;
-  };
-
   for (let i = 0; i < spisData.length; i++) {
-    let rowDate = rawDates[i][0];
-    if (!(rowDate instanceof Date)) continue;
-    let weekNum = getWeekNumber(rowDate);
+    let rowDate = parseDateToYMD(rawDates[i][0]);
+    if (rangeDates.indexOf(rowDate) === -1) continue;
     let rowStart = spisData[i][1];
     let rowEnd = spisData[i][2];
     let rowDeck = String(spisData[i][3]).trim().toUpperCase();
@@ -635,6 +644,7 @@ function getTimeByWeekReport(includeBreaks) {
        rowTask = "Supervision";
     }
 
+    const rowWeekNum = getIsoWeekNumber(new Date(rowDate + 'T00:00:00')) ?? getIsoWeekNumber(startDate);
     let duration = parseWorkTimeBackend(rowEnd) - parseWorkTimeBackend(rowStart);
     if (duration < 0) duration += 24;
     duration = Math.round(duration * 100) / 100;
@@ -646,10 +656,10 @@ function getTimeByWeekReport(includeBreaks) {
         if (!reportData.extraDeck.tasks[extraTaskKey]) {
           reportData.extraDeck.tasks[extraTaskKey] = { total: 0, weeklyHours: {} };
         }
-        if (!reportData.extraDeck.tasks[extraTaskKey].weeklyHours[weekNum]) {
-          reportData.extraDeck.tasks[extraTaskKey].weeklyHours[weekNum] = 0;
+        if (!reportData.extraDeck.tasks[extraTaskKey].weeklyHours[rowWeekNum]) {
+          reportData.extraDeck.tasks[extraTaskKey].weeklyHours[rowWeekNum] = 0;
         }
-        reportData.extraDeck.tasks[extraTaskKey].weeklyHours[weekNum] += duration;
+        reportData.extraDeck.tasks[extraTaskKey].weeklyHours[rowWeekNum] += duration;
         reportData.extraDeck.tasks[extraTaskKey].total += duration;
       } else {
         if (rowDeck === "TRAVEL") {
@@ -661,10 +671,10 @@ function getTimeByWeekReport(includeBreaks) {
         if (!reportData.decks[rowDeck].tasks[rowTask]) {
            reportData.decks[rowDeck].tasks[rowTask] = { total: 0, weeklyHours: {} };
         }
-        if (!reportData.decks[rowDeck].tasks[rowTask].weeklyHours[weekNum]) {
-          reportData.decks[rowDeck].tasks[rowTask].weeklyHours[weekNum] = 0;
+        if (!reportData.decks[rowDeck].tasks[rowTask].weeklyHours[rowWeekNum]) {
+          reportData.decks[rowDeck].tasks[rowTask].weeklyHours[rowWeekNum] = 0;
         }
-        reportData.decks[rowDeck].tasks[rowTask].weeklyHours[weekNum] += duration;
+        reportData.decks[rowDeck].tasks[rowTask].weeklyHours[rowWeekNum] += duration;
         reportData.decks[rowDeck].tasks[rowTask].total += duration;
         if(rowTask === "Supervision") {
           if (reportData.allTasks.indexOf(rowTask) === -1) {
@@ -672,7 +682,7 @@ function getTimeByWeekReport(includeBreaks) {
           }
         }
       }
-      reportData.allWeeks.add(weekNum);
+      reportData.allWeeks.add(rowWeekNum);
     }
   }
 
@@ -728,7 +738,7 @@ function getTechnicianWeeklyReports(dateStr, dateToStr, includeBreaks) {
   }
 
   let dateRangeLabel = rangeDates.length > 1 ? `${rangeDates[0]} / ${rangeDates[rangeDates.length - 1]}` : rangeDates[0];
-  let weekNum = rangeDates[0] || dateStr;
+  let weekNum = getIsoWeekNumber(fromDate) ?? rangeDates[0] || dateStr;
   let year = fromDate.getFullYear();
 
   let reportData = {

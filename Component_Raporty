@@ -15,7 +15,7 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end w-full">
       <div>
         <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data od</label>
-        <input type="date" id="reportDate" onchange="adjustWeekDates()" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
+        <input type="date" id="reportDate" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
       </div>
       <div>
         <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do</label>
@@ -63,25 +63,10 @@
   let currentReportType = 'weekly';
 
   document.addEventListener("DOMContentLoaded", () => {
-    const today = new Date().toISOString().split('T')[0];
-    const dateInput = document.getElementById('reportDate');
-    if (dateInput) {
-      dateInput.value = today;
-      adjustWeekDates();
-    }
-  });
-
-  function adjustWeekDates() {
+    const today = new Date();
     const fromInput = document.getElementById('reportDate');
     const toInput = document.getElementById('reportDateTo');
-    if (!fromInput || !toInput || !fromInput.value) return;
-
-    const parts = fromInput.value.split('-');
-    const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
-    if (isNaN(selectedDate.getTime())) return;
-
-    const endDate = new Date(selectedDate);
-    endDate.setDate(selectedDate.getDate() + 7);
+    if (!fromInput || !toInput) return;
 
     const formatDate = (d) => {
       const yyyy = d.getFullYear();
@@ -90,14 +75,40 @@
       return `${yyyy}-${mm}-${dd}`;
     };
 
-    toInput.value = formatDate(endDate);
-  }
+    const parseLocalDate = (value) => {
+      const [year, month, day] = value.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    };
+
+    const syncDefaultEndDate = () => {
+      if (!fromInput.value || toInput.dataset.manual === 'true') return;
+      const selectedDate = parseLocalDate(fromInput.value);
+      const nextDate = new Date(selectedDate);
+      nextDate.setDate(selectedDate.getDate() + 7);
+      toInput.value = formatDate(nextDate);
+    };
+
+    const defaultFrom = new Date(today);
+    fromInput.value = formatDate(defaultFrom);
+    syncDefaultEndDate();
+
+    fromInput.addEventListener('change', () => {
+      toInput.dataset.manual = 'false';
+      syncDefaultEndDate();
+    });
+
+    toInput.addEventListener('change', () => {
+      toInput.dataset.manual = 'true';
+    });
+  });
 
   function fetchWeeklyReport() {
     const dateStr = document.getElementById('reportDate').value;
+    const dateToStr = document.getElementById('reportDateTo').value;
     const includeBreaks = document.getElementById('reportIncludeBreaks').checked;
     const btn = document.getElementById('btnGenerateReport');
-    if (!dateStr) { alert("Wybierz datę!"); return; }
+    if (!dateStr || !dateToStr) { alert("Wybierz datę od i datę do."); return; }
+    if (dateToStr < dateStr) { alert("Data do nie może być wcześniejsza niż data od."); return; }
 
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Pobieranie...';
     btn.disabled = true;
@@ -115,12 +126,17 @@
         btn.innerHTML = '<i class="fa-solid fa-table-list mr-2 text-seaviaBlue"></i> Czas na pokładach';
         btn.disabled = false;
       })
-      .getCandidoWeeklyReport(dateStr, includeBreaks);
+      .getCandidoWeeklyReport(dateStr, dateToStr, includeBreaks);
   }
 
   function fetchTimeByWeekReport() {
+    const dateStr = document.getElementById('reportDate').value;
+    const dateToStr = document.getElementById('reportDateTo').value;
     const includeBreaks = document.getElementById('reportIncludeBreaks').checked;
     const btn = document.getElementById('btnGenerateTimeByWeekReport');
+    if (!dateStr || !dateToStr) { alert("Wybierz datę od i datę do."); return; }
+    if (dateToStr < dateStr) { alert("Data do nie może być wcześniejsza niż data od."); return; }
+
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Przetwarzanie...';
     btn.disabled = true;
 
@@ -137,7 +153,7 @@
         btn.innerHTML = '<i class="fa-solid fa-calendar-week mr-2 text-seaviaBlue"></i> Czas w tygodniach';
         btn.disabled = false;
       })
-      .getTimeByWeekReport(includeBreaks);
+      .getTimeByWeekReport(dateStr, dateToStr, includeBreaks);
   }
 
   function fetchTechnicianTimesheets() {

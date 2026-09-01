@@ -14,12 +14,12 @@
     <!-- Wiersz 1: Ustawienie daty Od-Do i płatnych przerw -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end w-full">
       <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data od (Poniedziałek / Dowolny dzień)</label>
-        <input type="date" id="reportDate" onchange="adjustWeekDates()" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data od</label>
+        <input type="date" id="reportDate" onchange="setDefaultEndDate()" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
       </div>
       <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do (Niedziela włącznie)</label>
-        <input type="date" id="reportDateTo" disabled class="w-full border border-slate-300 rounded p-2.5 bg-slate-100 font-medium text-slate-500 cursor-not-allowed">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do (domyślnie: data od + 7 dni)</label>
+        <input type="date" id="reportDateTo" onchange="handleManualEndDateChange()" class="w-full border border-slate-300 rounded p-2.5 bg-white font-medium text-slate-700 focus:ring-2 focus:ring-seaviaBlue">
       </div>
       <div class="flex items-center h-[46px] pb-1">
         <label class="flex items-center space-x-2 cursor-pointer group">
@@ -67,40 +67,40 @@
     const dateInput = document.getElementById('reportDate');
     if (dateInput) {
       dateInput.value = today;
-      adjustWeekDates();
+      setDefaultEndDate();
     }
   });
 
-  // Automatyczne ustawianie daty Od na Poniedziałek i Do na Niedzielę
-  function adjustWeekDates() {
+  function formatDate(d) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function setDefaultEndDate() {
     const fromInput = document.getElementById('reportDate');
     const toInput = document.getElementById('reportDateTo');
-    if (!fromInput || !toInput || !fromInput.value) return;
+    if (!fromInput || !toInput || !fromInput.value) {
+      if (toInput) toInput.value = '';
+      return;
+    }
 
-    // Bezpieczne parsowanie daty lokalnej
     const parts = fromInput.value.split('-');
-    const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
-    if (isNaN(selectedDate.getTime())) return;
+    const fromDate = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (isNaN(fromDate.getTime())) return;
 
-    const day = selectedDate.getDay(); // 0 = Niedziela, 1 = Poniedziałek, ..., 6 = Sobota
-    // Oblicz dni do poniedziałku i niedzieli tego samego tygodnia
-    const daysToMonday = day === 0 ? -6 : 1 - day;
-    const mondayDate = new Date(selectedDate);
-    mondayDate.setDate(selectedDate.getDate() + daysToMonday);
+    const toDate = new Date(fromDate);
+    toDate.setDate(fromDate.getDate() + 7);
+    toInput.value = formatDate(toDate);
+  }
 
-    const sundayDate = new Date(mondayDate);
-    sundayDate.setDate(mondayDate.getDate() + 6);
+  function handleManualEndDateChange() {
+    const toInput = document.getElementById('reportDateTo');
+    if (!toInput || !toInput.value) return;
 
-    const formatDate = (d) => {
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
-    };
-
-    // Ustawiamy wartości w polach
-    fromInput.value = formatDate(mondayDate);
-    toInput.value = formatDate(sundayDate);
+    // Nie zmieniamy daty od po zmianie daty do.
+    // Użytkownik może ręcznie ustawić krótszy lub dłuższy okres.
   }
 
   function fetchWeeklyReport() {

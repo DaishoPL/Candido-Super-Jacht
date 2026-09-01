@@ -706,51 +706,49 @@ function getTimeByWeekReport(includeBreaks) {
   return reportData;
 }
 
-function getTechnicianWeeklyReports(dateStr, includeBreaks) {
+function getTechnicianWeeklyReports(dateStr, dateToStr, includeBreaks) {
+  if (arguments.length === 2 && typeof dateToStr === 'boolean') {
+    includeBreaks = dateToStr;
+    dateToStr = null;
+  }
   if (!dateStr) return null;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');
   if (!sheetSpis || sheetSpis.getLastRow() < 2) return null;
-  
-  let selectedDate = new Date(dateStr);
-  let dayOfWeek = selectedDate.getDay();
-  let diff = selectedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-  let monday = new Date(selectedDate.setDate(diff));
-  let weekDates = [];
-  
-  for (let i = 0; i < 7; i++) {
-    let d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    weekDates.push(parseDateToYMD(d));
+
+  const fromDate = new Date(dateStr);
+  const toDate = dateToStr ? new Date(dateToStr) : new Date(fromDate);
+  const rangeDates = [];
+  const currentDate = new Date(fromDate);
+  const endDate = new Date(toDate);
+
+  while (currentDate <= endDate) {
+    rangeDates.push(parseDateToYMD(new Date(currentDate)));
+    currentDate.setDate(currentDate.getDate() + 1);
   }
-  
-  let target = new Date(monday.valueOf());
-  let dayNr = (monday.getDay() + 6) % 7;
-  target.setDate(target.getDate() - dayNr + 3);
-  let firstThursday = target.valueOf();
-  target.setMonth(0, 1);
-  if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
-  
-  let weekNum = 1 + Math.ceil((firstThursday - target) / 604800000);
-  let year = target.getFullYear();
-  
+
+  let dateRangeLabel = rangeDates.length > 1 ? `${rangeDates[0]} / ${rangeDates[rangeDates.length - 1]}` : rangeDates[0];
+  let weekNum = 1;
+  let year = fromDate.getFullYear();
+
   let reportData = {
     weekInfo: {
       weekNumber: weekNum,
       year: year,
-      dates: weekDates
+      dates: rangeDates,
+      rangeLabel: dateRangeLabel
     },
     technicians: {}
   };
-  
+
   const spisData = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 8).getDisplayValues();
   const rawDates = sheetSpis.getRange(2, 1, sheetSpis.getLastRow() - 1, 1).getValues();
-  
+
   for (let i = 0; i < spisData.length; i++) {
     let rowDate = parseDateToYMD(rawDates[i][0]);
-    let dayIndex = weekDates.indexOf(rowDate);
+    let dayIndex = rangeDates.indexOf(rowDate);
     if (dayIndex === -1) continue;
-    
+
     let rowStart = String(spisData[i][1]).trim();
     let rowEnd = String(spisData[i][2]).trim();
     let rowDeck = String(spisData[i][3]).trim().toUpperCase();
@@ -760,19 +758,19 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
     let techName = String(spisData[i][7]).trim();
     let isCancelled = rowTask.includes("[ANULOWANE]") || rowTask.includes("ANULOWANE");
     let isBreak = rowTask.toLowerCase().includes("przerwa") || rowTask.toLowerCase().includes("break") || rowTask.toLowerCase().includes("brake");
-    
+
     if (isBreak && !includeBreaks) continue;
     if (!rowStart || !rowEnd || isCancelled || !techName || !rowTask) continue;
-    
+
     let duration = parseWorkTimeBackend(rowEnd) - parseWorkTimeBackend(rowStart);
     if (duration < 0) duration += 24;
     duration = Math.round(duration * 100) / 100;
-    
+
     if (duration > 0) {
       if (!reportData.technicians[techName]) {
         reportData.technicians[techName] = {
           totalHours: 0,
-          days: [[], [], [], [], [], [], []]
+          days: Array(rangeDates.length).fill(null).map(() => [])
         };
       }
       reportData.technicians[techName].days[dayIndex].push({
@@ -787,11 +785,11 @@ function getTechnicianWeeklyReports(dateStr, includeBreaks) {
       reportData.technicians[techName].totalHours += duration;
     }
   }
-  
+
   Object.keys(reportData.technicians).forEach(techName => {
     reportData.technicians[techName].totalHours = Math.round(reportData.technicians[techName].totalHours * 10) / 10;
   });
-  
+
   // URUCHOMIENIE W TLE: Synchronizacja z REV OCEAN - timesheet
   syncWeeklyTimesheet(reportData);
 

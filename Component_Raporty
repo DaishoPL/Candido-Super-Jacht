@@ -152,9 +152,11 @@
 
   function fetchTechnicianTimesheets() {
     const dateStr = document.getElementById('reportDate').value;
+    const dateToStr = document.getElementById('reportDateTo').value;
     const includeBreaks = document.getElementById('reportIncludeBreaks').checked;
     const btn = document.getElementById('btnGenerateTimesheets');
-    if (!dateStr) { alert("Wybierz datę z tygodnia!"); return; }
+    if (!dateStr || !dateToStr) { alert("Wybierz datę od i datę do."); return; }
+    if (dateToStr < dateStr) { alert("Data do nie może być wcześniejsza niż data od."); return; }
 
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Przygotowuję karty...';
     btn.disabled = true;
@@ -162,7 +164,7 @@
     google.script.run
       .withSuccessHandler(data => {
         if (!data || Object.keys(data.technicians).length === 0) {
-          alert("Brak przepracowanych godzin przez techników w wybranym tygodniu.");
+          alert("Brak przepracowanych godzin przez techników w wybranym zakresie dat.");
           btn.innerHTML = '<i class="fa-solid fa-users-viewfinder mr-2"></i> Karty pracy PDF';
           btn.disabled = false;
           return;
@@ -175,7 +177,7 @@
         btn.innerHTML = '<i class="fa-solid fa-users-viewfinder mr-2"></i> Karty pracy PDF';
         btn.disabled = false;
       })
-      .getTechnicianWeeklyReports(dateStr, includeBreaks);
+      .getTechnicianWeeklyReports(dateStr, dateToStr, includeBreaks);
   }
 
   function generateTechnicianPDFs(data, btnElement) {

@@ -482,7 +482,10 @@ function getCandidoWeeklyReport(dateStr, dateToStr, includeBreaks) {
     weekDates.push(parseDateToYMD(new Date(d)));
   }
 
-  const weekNum = getIsoWeekNumber(startDate) ?? dateStr;
+  let weekNum = getIsoWeekNumber(startDate);
+  if (!weekNum) {
+    weekNum = dateStr;
+  }
 
   let reportData = {
     settings: { includeBreaks: includeBreaks },
@@ -644,7 +647,10 @@ function getTimeByWeekReport(dateStr, dateToStr, includeBreaks) {
        rowTask = "Supervision";
     }
 
-    const rowWeekNum = getIsoWeekNumber(new Date(rowDate + 'T00:00:00')) ?? getIsoWeekNumber(startDate);
+    let rowWeekNum = getIsoWeekNumber(new Date(rowDate + 'T00:00:00'));
+    if (!rowWeekNum) {
+      rowWeekNum = getIsoWeekNumber(startDate);
+    }
     let duration = parseWorkTimeBackend(rowEnd) - parseWorkTimeBackend(rowStart);
     if (duration < 0) duration += 24;
     duration = Math.round(duration * 100) / 100;
@@ -738,7 +744,10 @@ function getTechnicianWeeklyReports(dateStr, dateToStr, includeBreaks) {
   }
 
   let dateRangeLabel = rangeDates.length > 1 ? `${rangeDates[0]} / ${rangeDates[rangeDates.length - 1]}` : rangeDates[0];
-  let weekNum = getIsoWeekNumber(fromDate) ?? rangeDates[0] || dateStr;
+  let weekNum = getIsoWeekNumber(fromDate);
+  if (!weekNum) {
+    weekNum = rangeDates[0] || dateStr;
+  }
   let year = fromDate.getFullYear();
 
   let reportData = {

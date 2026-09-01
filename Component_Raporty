@@ -18,8 +18,8 @@
         <input type="date" id="reportDate" onchange="adjustWeekDates()" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
       </div>
       <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do (Niedziela włącznie)</label>
-        <input type="date" id="reportDateTo" disabled class="w-full border border-slate-300 rounded p-2.5 bg-slate-100 font-medium text-slate-500 cursor-not-allowed">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do (dowolny zakres)</label>
+        <input type="date" id="reportDateTo" class="w-full border border-slate-300 rounded p-2.5 bg-white font-medium text-slate-700 focus:ring-2 focus:ring-seaviaBlue">
       </div>
       <div class="flex items-center h-[46px] pb-1">
         <label class="flex items-center space-x-2 cursor-pointer group">

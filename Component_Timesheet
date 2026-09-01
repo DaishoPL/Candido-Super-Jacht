@@ -1,0 +1,49 @@
+<div class="bg-white rounded-lg shadow-sm p-8 border border-gray-100 animate-fade-in max-w-4xl mx-auto">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4">
+        <div>
+            <h2 class="text-2xl font-bold text-green-700 flex items-center">
+                <i class="fa-solid fa-file-excel mr-3 text-green-600"></i> Eksport Time Sheet
+            </h2>
+            <p class="text-sm text-slate-500 mt-2">
+                Zaległe godziny dopisują się automatycznie w tle, podczas generowania Kart Pracy (PDF) w module Raportów. 
+                Tutaj możesz pobrać aktualny stan arkusza "REV OCEAN - timesheet".
+            </p>
+        </div>
+    </div>
+
+    <div class="bg-slate-50 p-6 rounded-lg border border-slate-200 mb-4 flex flex-col items-center justify-center py-10">
+        <i class="fa-solid fa-file-spreadsheet text-5xl text-slate-300 mb-4"></i>
+        <p class="text-slate-600 mb-6 text-center max-w-lg font-medium">
+            Pobierz aktualny stan arkusza z zachowaniem wszystkich kolorów (np. jasnożółty dla prac Travel), układu oraz szerokości kolumn.
+        </p>
+        <button id="btnExportTimesheet" onclick="exportTimesheet()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded shadow-sm transition-all flex items-center text-lg">
+            <i class="fa-solid fa-download mr-3"></i> Pobierz plik .XLSX
+        </button>
+    </div>
+</div>
+
+<script>
+function exportTimesheet() {
+    const btn = document.getElementById('btnExportTimesheet');
+    const origContent = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-3"></i> Generowanie arkusza...';
+    btn.disabled = true;
+
+    google.script.run
+        .withSuccessHandler(res => {
+            if (res.success) {
+                window.open(res.fileUrl, '_blank');
+            } else {
+                alert("Błąd podczas generowania pliku: " + res.error);
+            }
+            btn.innerHTML = origContent;
+            btn.disabled = false;
+        })
+        .withFailureHandler(err => {
+            alert("Błąd serwera: " + err.message);
+            btn.innerHTML = origContent;
+            btn.disabled = false;
+        })
+        .exportRevOceanTimesheet();
+}
+</script>

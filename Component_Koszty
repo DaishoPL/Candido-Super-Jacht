@@ -1,5 +1,4 @@
 <div class="bg-white rounded-lg shadow-sm p-4 md:p-8 border border-gray-100 animate-fade-in">
-  <!-- Nagłówek Komponentu -->
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b pb-4 gap-4">
     <div>
       <h2 class="text-2xl font-bold text-seaviaBlue">
@@ -15,7 +14,6 @@
     </a>
   </div>
 
-  <!-- Formularz Dodawania Kosztu -->
   <form id="costForm" onsubmit="saveCost(event)" class="max-w-2xl mx-auto bg-slate-50 p-6 rounded-lg border border-slate-200">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
       <!-- Pole: Nazwa kosztu -->
@@ -32,11 +30,10 @@
       </div>
     </div>
 
-    <!-- Sekcja załączników / plików -->
     <div class="mb-6">
       <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Załączniki (Zdjęcia, PDF lub Paragony)</label>
       
-      <!-- Ukryte natywne inputy plików (multiple dodane do fileInput) -->
+      <!-- Ukryte natywne inputy plików -->
       <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleFileSelected(this)">
       <input type="file" id="fileInput" accept="image/*,application/pdf" class="hidden" multiple onchange="handleFileSelected(this)">
 
@@ -55,7 +52,6 @@
       </div>
     </div>
 
-    <!-- Podgląd wybranych plików -->
     <div id="filePreviewContainer" class="hidden bg-white border border-slate-200 rounded-lg p-4 mb-6 animate-fade-in shadow-inner">
       <div class="flex items-center justify-between border-b pb-2 mb-3">
         <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Wybrane pliki</span>
@@ -68,7 +64,6 @@
       </div>
     </div>
 
-    <!-- Przyciski akcji -->
     <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
       <button type="submit" id="saveCostBtn" 
               class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded shadow-sm transition-all flex items-center justify-center text-sm gap-2">
@@ -88,26 +83,34 @@
     if (dateInput) dateInput.value = today;
   });
 
-  // Obsługa wyzwalania natywnych inputów
+  // ZABEZPIECZENIE: Zablokowanie dodawania plików przed wpisaniem nazwy kosztu
   function triggerCamera() {
+    const costName = document.getElementById('costName').value.trim();
+    if (!costName) {
+      alert("Najpierw wpisz nazwę lub opis kosztu!");
+      document.getElementById('costName').focus();
+      return;
+    }
     document.getElementById('cameraInput').click();
   }
 
   function triggerFileSelect() {
+    const costName = document.getElementById('costName').value.trim();
+    if (!costName) {
+      alert("Najpierw wpisz nazwę lub opis kosztu!");
+      document.getElementById('costName').focus();
+      return;
+    }
     document.getElementById('fileInput').click();
   }
 
-  // Obsługa wczytania i podglądu wybranych plików
   function handleFileSelected(input) {
     const files = Array.from(input.files);
     if (files.length === 0) return;
-
-    // Dodanie nowych plików do aktualnie wybranej listy
     activeSelectedFiles = activeSelectedFiles.concat(files);
     renderFilesPreview();
   }
 
-  // Renderowanie listy wybranych plików z opcją usuwania każdego z osobna
   function renderFilesPreview() {
     const previewContainer = document.getElementById('filePreviewContainer');
     const filesListContainer = document.getElementById('filesListContainer');
@@ -145,13 +148,11 @@
     previewContainer.classList.remove('hidden');
   }
 
-  // Usunięcie wybranego pliku z listy
   function removeFileFromSelection(index) {
     activeSelectedFiles.splice(index, 1);
     renderFilesPreview();
   }
 
-  // Wyczyszczenie całego wyboru
   function clearFileSelection() {
     document.getElementById('cameraInput').value = "";
     document.getElementById('fileInput').value = "";
@@ -159,7 +160,6 @@
     renderFilesPreview();
   }
 
-  // Zapisanie kosztu i sekwencyjny upload wszystkich plików
   function saveCost(event) {
     event.preventDefault();
     const costName = document.getElementById('costName').value.trim();
@@ -174,10 +174,8 @@
 
     let uploadIndex = 0;
 
-    // Funkcja pomocnicza do sekwencyjnego przesyłania plików
     function uploadNextFile() {
       if (uploadIndex >= activeSelectedFiles.length) {
-        // Wszystkie pliki zostały pomyślnie wysłane
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<span>Zapisz koszt</span> <i class="fa-solid fa-cloud-arrow-up text-base"></i>';
         
@@ -201,17 +199,18 @@
           .withSuccessHandler(res => {
             if (res && res.success) {
               uploadIndex++;
-              uploadNextFile(); // Wywołanie kolejnego pliku
+              uploadNextFile(); 
             } else {
-              alert(`Błąd przesyłania pliku "${file.name}": ` + (res ? res.message : "Brak odpowiedzi serwera."));
+              alert(`Błąd przesyłania pliku: ` + (res ? res.message : "Brak odpowiedzi serwera."));
               resetSaveButton();
             }
           })
           .withFailureHandler(err => {
-            alert(`Błąd komunikacji przy pliku "${file.name}": ` + err);
+            alert(`Błąd komunikacji przy pliku: ` + err);
             resetSaveButton();
           })
-          .uploadCostFile(base64Data, file.name, costName, costDate);
+          // PRZEKAZUJEMY INDEKS PLIKU i CAŁKOWITĄ ILOŚĆ (Zabezpieczenie przed dublowaniem nazw na dysku)
+          .uploadCostFile(base64Data, file.name, costName, costDate, uploadIndex, activeSelectedFiles.length);
       };
       reader.readAsDataURL(file);
     }
@@ -221,7 +220,6 @@
       submitBtn.innerHTML = '<span>Zapisz koszt</span> <i class="fa-solid fa-cloud-arrow-up text-base"></i>';
     }
 
-    // Rozpoczęcie wysyłania pierwszego pliku
     uploadNextFile();
   }
 </script>

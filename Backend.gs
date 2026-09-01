@@ -728,7 +728,7 @@ function getTechnicianWeeklyReports(dateStr, dateToStr, includeBreaks) {
   }
 
   let dateRangeLabel = rangeDates.length > 1 ? `${rangeDates[0]} / ${rangeDates[rangeDates.length - 1]}` : rangeDates[0];
-  let weekNum = 1;
+  let weekNum = rangeDates[0] || dateStr;
   let year = fromDate.getFullYear();
 
   let reportData = {

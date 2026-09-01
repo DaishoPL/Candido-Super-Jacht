@@ -14,11 +14,11 @@
     <!-- Wiersz 1: Ustawienie daty Od-Do i płatnych przerw -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end w-full">
       <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data od (Poniedziałek / Dowolny dzień)</label>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data od</label>
         <input type="date" id="reportDate" onchange="adjustWeekDates()" class="w-full border border-slate-300 rounded p-2.5 focus:ring-2 focus:ring-seaviaBlue bg-white font-medium text-slate-700">
       </div>
       <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do (dowolny zakres)</label>
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Data do</label>
         <input type="date" id="reportDateTo" class="w-full border border-slate-300 rounded p-2.5 bg-white font-medium text-slate-700 focus:ring-2 focus:ring-seaviaBlue">
       </div>
       <div class="flex items-center h-[46px] pb-1">
@@ -71,25 +71,17 @@
     }
   });
 
-  // Automatyczne ustawianie daty Od na Poniedziałek i Do na Niedzielę
   function adjustWeekDates() {
     const fromInput = document.getElementById('reportDate');
     const toInput = document.getElementById('reportDateTo');
     if (!fromInput || !toInput || !fromInput.value) return;
 
-    // Bezpieczne parsowanie daty lokalnej
     const parts = fromInput.value.split('-');
     const selectedDate = new Date(parts[0], parts[1] - 1, parts[2]);
     if (isNaN(selectedDate.getTime())) return;
 
-    const day = selectedDate.getDay(); // 0 = Niedziela, 1 = Poniedziałek, ..., 6 = Sobota
-    // Oblicz dni do poniedziałku i niedzieli tego samego tygodnia
-    const daysToMonday = day === 0 ? -6 : 1 - day;
-    const mondayDate = new Date(selectedDate);
-    mondayDate.setDate(selectedDate.getDate() + daysToMonday);
-
-    const sundayDate = new Date(mondayDate);
-    sundayDate.setDate(mondayDate.getDate() + 6);
+    const endDate = new Date(selectedDate);
+    endDate.setDate(selectedDate.getDate() + 7);
 
     const formatDate = (d) => {
       const yyyy = d.getFullYear();
@@ -98,9 +90,7 @@
       return `${yyyy}-${mm}-${dd}`;
     };
 
-    // Ustawiamy wartości w polach
-    fromInput.value = formatDate(mondayDate);
-    toInput.value = formatDate(sundayDate);
+    toInput.value = formatDate(endDate);
   }
 
   function fetchWeeklyReport() {
@@ -183,7 +173,7 @@
   function generateTechnicianPDFs(data, btnElement) {
     window.scrollTo(0, 0);
     setTimeout(() => {
-      const dayNames = ["MON.", "TUE.", "WED.", "THU.", "FRI.", "SAT.", "SUN."];
+      const dayNames = data.weekInfo.dates.map(d => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase());
       let html = `
         <style>
           .ts-container { font-family: Arial, sans-serif; background-color: #ffffff; width: 1050px; color: #000000; } .ts-page { padding: 20px; page-break-after: always; box-sizing: border-box; background-color: #ffffff; } .ts-page:last-child { page-break-after: auto; } .ts-logo-bar { background-color: #4a4a4a; color: white; padding: 10px 15px; display: flex; align-items: center; justify-content: flex-start; margin-bottom: 5px; position: relative;} .ts-logo-bar::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 30%; background-color: #555555; clip-path: polygon(20px 0, 100% 0, 100% 100%, 0 100%); } .ts-logo-text { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 20px; letter-spacing: 2px; position: relative; z-index: 10;} .ts-logo-text span { font-weight: bold; } .ts-address { font-size: 9px; color: #666; margin-bottom: 15px; padding-left: 5px;} .ts-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; } .ts-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; } .ts-table th, .ts-table td { border: 1px solid #333; padding: 4px 6px; text-align: left; vertical-align: middle; } .ts-info td { padding: 4px 6px; } .ts-label { font-weight: bold; font-size: 11px; width: 80px; border-right: none;} .ts-value { border-left: none; font-size: 11px;} .ts-grid th { background-color: #e8e8e8; font-weight: normal; text-align: center; font-size: 10px; padding: 6px;} .ts-grid td.day-col { width: 50px; font-weight: bold; font-size: 10px; vertical-align: middle; text-align: center;} .ts-grid td { font-size: 10px; height: 25px;} .ts-center { text-align: center; vertical-align: middle !important;} .ts-total td { background-color: #e8e8e8; font-weight: bold; font-size: 11px;} .ts-signs { display: flex; justify-content: space-around; margin-top: 30px; font-size: 11px;} .ts-sign-box { text-align: center; width: 250px; } .ts-sign-line { border-bottom: 1px solid #333; margin-bottom: 5px; height: 25px; }

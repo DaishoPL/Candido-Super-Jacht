@@ -13,7 +13,7 @@ function forceDrivePermission() {
 function doGet() {
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
-    .setTitle('SUPER JACHT-main')
+    .setTitle('SUPER JACHT-dev')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
@@ -706,11 +706,7 @@ function getTimeByWeekReport(includeBreaks) {
   return reportData;
 }
 
-function getTechnicianWeeklyReports(dateStr, dateToStr, includeBreaks) {
-  if (arguments.length === 2 && typeof dateToStr === 'boolean') {
-    includeBreaks = dateToStr;
-    dateToStr = null;
-  }
+function getTechnicianWeeklyReports(dateStr, includeBreaks) {
   if (!dateStr) return null;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetSpis = ss.getSheetByName('Spis wykonanych prac');

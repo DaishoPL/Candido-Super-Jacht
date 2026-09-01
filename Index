@@ -13,8 +13,8 @@
     </div>
     
     <div class="text-center hidden md:block">
-      <h1 class="text-xl font-bold text-gray-800">NL <span class="text-candidoRed">Time Sheet</span> Candido</h1>
-      <p class="text-[10px] text-gray-500 font-bold tracking-widest uppercase mt-0.5">Panel Brygadzisty Projektu</p>
+      <h1 class="text-xl font-bold text-gray-800">NL <span class="text-candidoRed">SUPER JACHT</span>.</h1>
+      <p class="text-[10px] text-gray-500 font-bold tracking-widest uppercase mt-0.5">DASHBOARD</p>
     </div>
     
     <div class="flex items-center space-x-4">
@@ -55,6 +55,10 @@
         <button id="btn-koszty" class="py-2 px-5 text-slate-500 font-medium hover:bg-slate-100 rounded-t-md transition-colors whitespace-nowrap" onclick="switchTab('koszty')">
           <i class="fa-solid fa-wallet mr-2"></i> Koszty
         </button>
+        <!-- NOWA ZAKŁADKA TIMESHEET -->
+        <button id="btn-timesheet" class="py-2 px-5 text-slate-500 font-medium hover:bg-slate-100 rounded-t-md transition-colors whitespace-nowrap" onclick="switchTab('timesheet')">
+          <i class="fa-solid fa-clock mr-2"></i> Time Sheet
+        </button>
       </div>
       
       <!-- ======================================================= -->
@@ -76,6 +80,10 @@
       <div id="sec-koszty" class="hidden animate-fade-in">
         <?!= include('Component_Koszty'); ?>
       </div>
+      <!-- NOWY KONTENER TIMESHEET -->
+      <div id="sec-timesheet" class="hidden animate-fade-in">
+        <?!= include('Component_Timesheet'); ?>
+      </div>
     </div>
   </main>
   
@@ -84,7 +92,8 @@
   <!-- ======================================================= -->
   <script>
     function switchTab(tabId) {
-      const tabs = ['project', 'tech', 'tasks', 'reports', 'koszty'];
+      // WAŻNE: Dodano 'timesheet' do tablicy
+      const tabs = ['project', 'tech', 'tasks', 'reports', 'koszty', 'timesheet'];
       tabs.forEach(id => {
         const section = document.getElementById('sec-' + id);
         const btn = document.getElementById('btn-' + id);
@@ -96,7 +105,7 @@
           } else {
             section.classList.add('hidden');
             section.classList.remove('block');
-            btn.className = "py-2 px-5 text-slate-500 font-medium hover:bg-slate-100 rounded-t-md transition-colors whitespace-nowrap";
+            btn.className = "py-2 px-5 text-slate-500 font-medium hover:bg-gray-100 rounded-t-md transition-colors whitespace-nowrap";
           }
         }
       });
